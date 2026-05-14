@@ -1,0 +1,37 @@
+image: rust:latest
+
+variables:
+  # Đảm bảo NodeJS không hỏi tương tác khi cài đặt
+  DEBIAN_FRONTEND: noninteractive
+
+stages:
+  - build
+
+build-linux:
+  stage: build
+  script:
+    # 1. Cài đặt các thư viện lõi của Linux mà Tauri yêu cầu (WebKit, GTK, v.v)
+    - apt-get update
+    - apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+    
+    # 2. Cài đặt Node.js (v18)
+    - curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    - apt-get install -y nodejs
+    
+    # 3. Cài đặt thư viện Node.js cho dự án gốc
+    - npm install
+    
+    # 4. Cài đặt thư viện Node.js cho zalo-sidecar (Rất quan trọng để build thành công)
+    - cd src-tauri/zalo-sidecar
+    - npm install
+    - cd ../..
+    
+    # 5. Build ứng dụng Tauri cho Linux (tạo file .AppImage và .deb)
+    - npm run tauri build
+
+  artifacts:
+    paths:
+      # Lưu lại các file cài đặt đã build thành công để tải về
+      - src-tauri/target/release/bundle/deb/*.deb
+      - src-tauri/target/release/bundle/appimage/*.AppImage
+    expire_in: 1 week
