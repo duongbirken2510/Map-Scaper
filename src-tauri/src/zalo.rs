@@ -73,7 +73,7 @@ impl ZaloSidecar {
             .arg(session_dir.to_string_lossy().to_string())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
@@ -87,13 +87,26 @@ impl ZaloSidecar {
 
         let stdin = child.stdin.take().ok_or("Cannot get stdin")?;
         let stdout = child.stdout.take().ok_or("Cannot get stdout")?;
+        let mut stderr = child.stderr.take().ok_or("Cannot get stderr")?;
         let mut reader = BufReader::new(stdout);
 
         // Wait for ready signal
         let mut ready_line = String::new();
-        reader
-            .read_line(&mut ready_line)
-            .map_err(|e| format!("Sidecar failed to start: {}", e))?;
+        match reader.read_line(&mut ready_line) {
+            Ok(0) => {
+                // EOF reached, process exited. Read stderr to find out why.
+                use std::io::Read;
+                let mut err_msg = String::new();
+                let _ = stderr.read_to_string(&mut err_msg);
+                return Err(format!("Node.js sidecar crashed on startup: {}", err_msg));
+            }
+            Ok(_) => {
+                if !ready_line.contains("_ready") {
+                    return Err(format!("Sidecar invalid ready signal: {}", ready_line));
+                }
+            }
+            Err(e) => return Err(format!("Sidecar failed to start: {}", e)),
+        }
 
         Ok(Self {
             child,
