@@ -7,6 +7,8 @@ Stepwell Scraper là một hệ thống Desktop Application mạnh mẽ kết h�
 - **Trạm Gửi Email Chào Hàng (Cold Email):** Hỗ trợ gửi email hàng loạt thông qua giao thức SMTP.
 - **Công nghệ Spintax:** Trộn văn bản ngẫu nhiên để lách bộ lọc Spam của Gmail/Outlook (Ví dụ: `{Chào|Xin chào} [Tên]`).
 - **Cơ chế UPSERT thông minh:** Cập nhật và làm giàu dữ liệu cũ mà không gây trùng lặp.
+- **Preview UI & Giao diện cải tiến:** Cho phép xem trước email (hỗ trợ Spintax), các bảng dữ liệu CRM được mở rộng linh hoạt chống tràn chữ.
+- **Xử lý Sidecar ổn định:** Nâng cấp thuật toán cấp phát đường dẫn nội bộ (Path Resolution) giúp module Zalo Node.js chống crash khi build hoặc run dev trên môi trường Windows.
 
 ## 🌟 Tính năng chính
 
