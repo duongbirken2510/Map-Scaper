@@ -3,6 +3,7 @@ use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::page::Page;
 use futures::StreamExt;
 use rust_xlsxwriter::{Color, Format, Workbook};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
@@ -19,6 +20,8 @@ pub struct Lead {
     pub phone: String,
     pub address: String,
     pub region: String,
+    pub website: String,
+    pub email: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +30,7 @@ pub struct ScrapeConfig {
     pub region: String,
     pub limit: usize,
     pub deduplicate: bool,
+    pub deep_crawl: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,6 +185,19 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
                 let region = extract_region(&lead_data.address, &config.region);
                 let stt = leads.len() + 1;
 
+                let mut email = String::new();
+                if config.deep_crawl && !lead_data.website.is_empty() {
+                    emit_progress(
+                        &app,
+                        &format!("Bắt đầu quét Website tìm Email: {}...", lead_data.website),
+                        leads.len(),
+                        skipped_count,
+                        false,
+                        None,
+                    );
+                    email = extract_email_from_website(&lead_data.website).await;
+                }
+
                 // Save to SQLite immediately
                 let _ = db.insert_lead(
                     &lead_data.name,
@@ -188,6 +205,8 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
                     &lead_data.address,
                     &region,
                     &config.keyword,
+                    &lead_data.website,
+                    &email,
                 );
 
                 emit_progress(
@@ -205,6 +224,8 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
                     phone: lead_data.phone,
                     address: lead_data.address,
                     region,
+                    website: lead_data.website.clone(),
+                    email,
                 });
 
                 sleep(Duration::from_millis(800)).await;
@@ -245,6 +266,7 @@ struct LeadData {
     name: String,
     phone: String,
     address: String,
+    website: String,
 }
 
 /// Collect all place detail URLs from the current list view.
@@ -333,10 +355,34 @@ async fn navigate_and_extract(page: &Page, url: &str) -> Result<LeadData, String
                 .trim();
         }
 
+        // Website
+        const webSelectors = [
+            'a[data-item-id="authority"]',
+            'a[data-tooltip*="Open website"]',
+            'a[data-tooltip*="Mở trang web"]',
+            'a[aria-label*="Website"]'
+        ];
+        let webEl = null;
+        for (const sel of webSelectors) {
+            webEl = document.querySelector(sel);
+            if (webEl) break;
+        }
+        let website = '';
+        if (webEl) {
+            website = webEl.getAttribute('href') || '';
+            if (website && website.includes('/url?q=')) {
+                try {
+                    let urlParams = new URLSearchParams(website.split('?')[1]);
+                    website = urlParams.get('q') || website;
+                } catch(e) {}
+            }
+        }
+
         return {
             name: nameEl ? nameEl.innerText.trim() : '',
             phone: cleanLabel(phoneEl),
-            address: cleanLabel(addrEl)
+            address: cleanLabel(addrEl),
+            website: website
         };
     })()"#;
 
@@ -356,6 +402,7 @@ async fn navigate_and_extract(page: &Page, url: &str) -> Result<LeadData, String
         name,
         phone: data["phone"].as_str().unwrap_or("").to_string(),
         address: data["address"].as_str().unwrap_or("").to_string(),
+        website: data["website"].as_str().unwrap_or("").to_string(),
     })
 }
 
@@ -387,7 +434,7 @@ pub fn generate_excel(leads: &[Lead], file_path: &str) -> Result<(), Box<dyn std
     let row_alt_format = Format::new()
         .set_background_color(Color::RGB(0xEFF6FF));
 
-    let headers = ["STT", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Khu vực"];
+    let headers = ["STT", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Khu vực", "Website", "Email"];
     for (col, header) in headers.iter().enumerate() {
         worksheet.write_with_format(0, col as u16, *header, &header_format)?;
     }
@@ -397,6 +444,8 @@ pub fn generate_excel(leads: &[Lead], file_path: &str) -> Result<(), Box<dyn std
     worksheet.set_column_width(2, 18)?;
     worksheet.set_column_width(3, 55)?;
     worksheet.set_column_width(4, 25)?;
+    worksheet.set_column_width(5, 35)?;
+    worksheet.set_column_width(6, 30)?;
 
     for (row_idx, lead) in leads.iter().enumerate() {
         let row = (row_idx + 1) as u32;
@@ -406,12 +455,16 @@ pub fn generate_excel(leads: &[Lead], file_path: &str) -> Result<(), Box<dyn std
             worksheet.write_with_format(row, 2, &lead.phone, &row_alt_format)?;
             worksheet.write_with_format(row, 3, &lead.address, &row_alt_format)?;
             worksheet.write_with_format(row, 4, &lead.region, &row_alt_format)?;
+            worksheet.write_with_format(row, 5, &lead.website, &row_alt_format)?;
+            worksheet.write_with_format(row, 6, &lead.email, &row_alt_format)?;
         } else {
             worksheet.write(row, 0, lead.stt as f64)?;
             worksheet.write(row, 1, &lead.name)?;
             worksheet.write(row, 2, &lead.phone)?;
             worksheet.write(row, 3, &lead.address)?;
             worksheet.write(row, 4, &lead.region)?;
+            worksheet.write(row, 5, &lead.website)?;
+            worksheet.write(row, 6, &lead.email)?;
         }
     }
 
@@ -490,3 +543,41 @@ fn find_chrome_path() -> String {
     }
     "chrome".to_string()
 }
+
+
+async fn extract_email_from_website(url: &str) -> String {
+    let mut target_url = url.to_string();
+    if !target_url.starts_with("http") {
+        target_url = format!("http://{}", target_url);
+    }
+    
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36")
+        .build() {
+            Ok(c) => c,
+            Err(_) => return String::new(),
+        };
+
+    let response = match client.get(&target_url).send().await {
+        Ok(res) => res,
+        Err(_) => return String::new(),
+    };
+
+    let html = match response.text().await {
+        Ok(text) => text,
+        Err(_) => return String::new(),
+    };
+
+    let re = Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap();
+    
+    for mat in re.find_iter(&html) {
+        let email = mat.as_str().to_string();
+        let lower = email.to_lowercase();
+        if !lower.ends_with(".png") && !lower.ends_with(".jpg") && !lower.ends_with(".gif") && !lower.contains("sentry.io") {
+            return email;
+        }
+    }
+    String::new()
+}
+

@@ -24,6 +24,8 @@ pub struct DbLead {
     pub address: String,
     pub region: String,
     pub keyword: String,
+    pub website: String,
+    pub email: String,
     pub scraped_at: String,
 }
 
@@ -87,8 +89,14 @@ impl Database {
                 address     TEXT    NOT NULL DEFAULT '',
                 region      TEXT    NOT NULL DEFAULT '',
                 keyword     TEXT    NOT NULL DEFAULT '',
+                website     TEXT    NOT NULL DEFAULT '',
+                email       TEXT    NOT NULL DEFAULT '',
                 scraped_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
             );
+
+            -- Attempt to add columns if upgrading from old version
+            ALTER TABLE leads ADD COLUMN website TEXT DEFAULT '';
+            ALTER TABLE leads ADD COLUMN email TEXT DEFAULT '';
 
             -- Unique index on normalized phone (non-empty only)
             CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_phone
@@ -173,11 +181,13 @@ impl Database {
         address: &str,
         region: &str,
         keyword: &str,
+        website: &str,
+        email: &str,
     ) -> SqlResult<bool> {
         let rows = self.conn.execute(
-            "INSERT OR IGNORE INTO leads (name, phone, address, region, keyword)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![name, phone, address, region, keyword],
+            "INSERT OR IGNORE INTO leads (name, phone, address, region, keyword, website, email)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![name, phone, address, region, keyword, website, email],
         )?;
         Ok(rows > 0)
     }
@@ -187,7 +197,7 @@ impl Database {
     /// Get all leads, newest first.
     pub fn get_all_leads(&self) -> SqlResult<Vec<DbLead>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, phone, address, region, keyword, scraped_at
+            "SELECT id, name, phone, address, region, keyword, website, email, scraped_at
              FROM leads
              ORDER BY id DESC",
         )?;
@@ -201,7 +211,9 @@ impl Database {
                     address: row.get(3)?,
                     region: row.get(4)?,
                     keyword: row.get(5)?,
-                    scraped_at: row.get(6)?,
+                    website: row.get(6).unwrap_or_default(),
+                    email: row.get(7).unwrap_or_default(),
+                    scraped_at: row.get(8)?,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -213,7 +225,7 @@ impl Database {
     /// Get leads filtered by region.
     pub fn get_leads_by_region(&self, region: &str) -> SqlResult<Vec<DbLead>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, phone, address, region, keyword, scraped_at
+            "SELECT id, name, phone, address, region, keyword, website, email, scraped_at
              FROM leads
              WHERE region LIKE ?1
              ORDER BY id DESC",
@@ -229,7 +241,9 @@ impl Database {
                     address: row.get(3)?,
                     region: row.get(4)?,
                     keyword: row.get(5)?,
-                    scraped_at: row.get(6)?,
+                    website: row.get(6).unwrap_or_default(),
+                    email: row.get(7).unwrap_or_default(),
+                    scraped_at: row.get(8)?,
                 })
             })?
             .filter_map(|r| r.ok())

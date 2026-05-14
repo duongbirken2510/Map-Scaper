@@ -67,7 +67,7 @@ async fn export_all_to_excel(state: State<'_, AppState>, file_path: String) -> R
     let db = open_db(&state)?;
     let db_leads = db.get_all_leads().map_err(|e| e.to_string())?;
     let leads: Vec<Lead> = db_leads.into_iter().enumerate().map(|(i, l)| Lead {
-        stt: i + 1, name: l.name, phone: l.phone, address: l.address, region: l.region,
+        stt: i + 1, name: l.name, phone: l.phone, address: l.address, region: l.region, website: l.website, email: l.email,
     }).collect();
     scraper::export_excel(leads, file_path).await
 }

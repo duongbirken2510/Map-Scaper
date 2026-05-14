@@ -15,6 +15,8 @@ interface Lead {
   phone: string;
   address: string;
   region: string;
+  website: string;
+  email: string;
 }
 
 interface DbLead {
@@ -24,6 +26,8 @@ interface DbLead {
   address: string;
   region: string;
   keyword: string;
+  website: string;
+  email: string;
   scraped_at: string;
 }
 
@@ -53,6 +57,7 @@ function App() {
   const [region, setRegion] = useState("Hồ Chí Minh");
   const [limit, setLimit] = useState(50);
   const [deduplicate, setDeduplicate] = useState(true);
+  const [deepCrawl, setDeepCrawl] = useState(false);
 
   // Scrape state
   const [isScraping, setIsScraping] = useState(false);
@@ -118,7 +123,7 @@ function App() {
     setActiveTab("logs");
     try {
       const leads = await invoke<Lead[]>("start_scraping", {
-        config: { keyword, region, limit, deduplicate },
+        config: { keyword, region, limit, deduplicate, deep_crawl: deepCrawl },
       });
       setResults(leads);
     } catch (err: any) {
@@ -261,6 +266,14 @@ function App() {
                 </button>
                 <label className="text-xs text-slate-300 select-none">Lọc trùng (toàn DB)</label>
               </div>
+              <div className="flex items-center gap-3 pt-1">
+                <button role="switch" aria-checked={deepCrawl}
+                  onClick={() => !isScraping && setDeepCrawl((v) => !v)}
+                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${deepCrawl ? "bg-amber-600" : "bg-slate-600"} ${isScraping ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${deepCrawl ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
+                <label className="text-xs text-slate-300 select-none">Quét sâu (Lấy Email) <span className="text-amber-400 font-semibold text-[10px]">CHẬM</span></label>
+              </div>
             </div>
           </div>
 
@@ -358,7 +371,7 @@ function App() {
                 <table className="w-full text-sm border-collapse">
                   <thead className="sticky top-0 bg-slate-800 text-slate-300 z-10">
                     <tr>
-                      {["STT", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Khu vực"].map(h => (
+                      {["STT", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Khu vực", "Website", "Email"].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -368,9 +381,11 @@ function App() {
                       <tr key={lead.stt} className={`border-t border-slate-800 hover:bg-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/30" : "bg-slate-900/60"}`}>
                         <td className="px-4 py-2.5 text-slate-400 text-center w-12">{lead.stt}</td>
                         <td className="px-4 py-2.5 font-medium text-white">{lead.name || "—"}</td>
-                        <td className="px-4 py-2.5 text-blue-400 font-mono w-36">{lead.phone || "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-300 text-xs">{lead.address || "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-300 text-xs w-40">{lead.region || "—"}</td>
+                        <td className="px-4 py-2.5 text-blue-400 font-mono w-32">{lead.phone || "—"}</td>
+                        <td className="px-4 py-2.5 text-slate-300 text-xs truncate max-w-[200px]">{lead.address || "—"}</td>
+                        <td className="px-4 py-2.5 text-slate-300 text-xs w-28 truncate">{lead.region || "—"}</td>
+                        <td className="px-4 py-2.5 text-slate-300 text-xs w-32 truncate">{lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}</td>
+                        <td className="px-4 py-2.5 text-amber-400 text-xs w-40 truncate">{lead.email || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -421,7 +436,7 @@ function App() {
                   <table className="w-full text-sm border-collapse">
                     <thead className="sticky top-0 bg-slate-800 text-slate-300 z-10">
                       <tr>
-                        {["#", "Tên khách hàng", "Số điện thoại", "Khu vực", "Từ khóa", "Thời gian cào"].map(h => (
+                        {["#", "Tên khách hàng", "Số điện thoại", "Khu vực", "Từ khóa", "Website", "Email", "Thời gian cào"].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -432,8 +447,10 @@ function App() {
                           <td className="px-4 py-2 text-slate-500 text-xs w-12">{lead.id}</td>
                           <td className="px-4 py-2 font-medium text-white text-sm">{lead.name || "—"}</td>
                           <td className="px-4 py-2 text-blue-400 font-mono text-xs w-32">{lead.phone || "—"}</td>
-                          <td className="px-4 py-2 text-slate-300 text-xs">{lead.region || "—"}</td>
-                          <td className="px-4 py-2 text-violet-400 text-xs">{lead.keyword || "—"}</td>
+                          <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[150px]">{lead.region || "—"}</td>
+                          <td className="px-4 py-2 text-violet-400 text-xs truncate max-w-[150px]">{lead.keyword || "—"}</td>
+                          <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[150px]">{lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}</td>
+                          <td className="px-4 py-2 text-amber-400 text-xs truncate max-w-[180px]">{lead.email || "—"}</td>
                           <td className="px-4 py-2 text-slate-500 text-xs whitespace-nowrap">{lead.scraped_at}</td>
                         </tr>
                       ))}
