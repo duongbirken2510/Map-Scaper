@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 interface ZaloUser { name: string; avatar: string; }
 interface ZaloStatus { logged_in: boolean; user?: ZaloUser; message: string; session_file: string; }
 interface OutreachProgress {
-  lead_id: number; lead_name: string; phone: string;
+  lead_id: number; lead_name: string; phone: string; email?: string;
   action: string; result: string; done: number; total: number; is_finished: boolean;
 }
 interface CrmLead {
@@ -488,10 +488,18 @@ export default function ZaloTab() {
                     onChange={e => setSettings(s => ({...s, smtp_password: e.target.value}))}
                     placeholder="xxxx xxxx xxxx xxxx"
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500" />
-                  <p className="text-[10px] text-amber-400/80 mt-1.5">Lưu ý: Bạn phải dùng "Mật khẩu ứng dụng" (App Password), không phải mật khẩu đăng nhập bình thường.</p>
+                  <div className="mt-3 p-3 bg-slate-900/50 rounded-lg border border-amber-900/30">
+                    <p className="text-[11px] font-medium text-amber-400 mb-1">🔑 Hướng dẫn lấy Mật khẩu ứng dụng (Gmail):</p>
+                    <ol className="text-[10px] text-slate-400 list-decimal pl-4 space-y-1">
+                      <li>Bắt buộc phải bật <b>Xác minh 2 bước</b> trên tài khoản Google.</li>
+                      <li>Vào phần <b>Bảo mật (Security)</b> trong Quản lý Tài khoản Google.</li>
+                      <li>Tìm kiếm từ khóa <b>"Mật khẩu ứng dụng"</b> (App passwords).</li>
+                      <li>Tạo mã mới, copy 16 chữ cái màu vàng và dán vào ô trên.</li>
+                    </ol>
+                  </div>
                 </div>
                 <div className="pt-2">
-                  <button onClick={saveSettings} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-all">Lưu cấu hình</button>
+                  <button onClick={doSaveSettings} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-all">Lưu cấu hình</button>
                 </div>
               </div>
 
