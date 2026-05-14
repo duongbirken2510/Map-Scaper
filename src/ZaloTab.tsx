@@ -46,6 +46,7 @@ export default function ZaloTab() {
   const [isSending, setIsSending] = useState(false);
   const [settings, setSettings] = useState<Record<string,string>>({});
   const [activeSection, setActiveSection] = useState<"zalo"|"crm"|"settings"|"email">("zalo");
+  const [previewKey, setPreviewKey] = useState(0);
 
   // Login form fields
   const [loginCookie, setLoginCookie] = useState("");
@@ -164,6 +165,17 @@ export default function ZaloTab() {
   const doSaveSettings = async () => {
     await invoke("save_settings", { settings });
     alert("Đã lưu cài đặt!");
+  };
+
+  const getPreviewHtml = () => {
+    let text = settings["email_body"] || "";
+    let preview = text.replace(/\{([^{}]+)\}/g, (match, p1) => {
+      const options = p1.split('|');
+      return options[Math.floor(Math.random() * options.length)];
+    });
+    preview = preview.replace(/\[Tên\]/g, "Nguyễn Văn A");
+    preview = preview.replace(/\[Website\]/g, "https://vidu.com");
+    return preview;
   };
 
   const filteredLeads = statusFilter === "ALL" ? crmLeads : crmLeads.filter(l => l.status === statusFilter);
@@ -406,16 +418,18 @@ export default function ZaloTab() {
           )}
 
           {/* Leads table */}
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-slate-800 z-10">
+          <div className="flex-1 overflow-x-auto">
+            <table className="w-full text-sm border-collapse min-w-[1200px]">
+              <thead className="sticky top-0 bg-slate-800 z-10 shadow-sm">
                 <tr>
                   <th className="px-3 py-2.5 w-8"/>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Tên</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-32">SĐT</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-32">Khu vực</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-36">Trạng thái</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Ghi chú</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-32 shrink-0">SĐT</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Email</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Website</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-32 shrink-0">Khu vực</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-36 shrink-0">Trạng thái</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider w-48 shrink-0">Ghi chú</th>
                 </tr>
               </thead>
               <tbody>
@@ -424,23 +438,27 @@ export default function ZaloTab() {
                   const isSelected = selectedIds.has(lead.id);
                   return (
                     <tr key={lead.id} className={`border-t border-slate-800 hover:bg-slate-800/40 transition-colors ${i%2===0?"bg-slate-900/20":"bg-slate-900/50"} ${isSelected?"ring-1 ring-inset ring-blue-500":""}`}>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-2 text-center shrink-0">
                         <input type="checkbox" checked={isSelected} onChange={e => {
                           const next = new Set(selectedIds);
                           e.target.checked ? next.add(lead.id) : next.delete(lead.id);
                           setSelectedIds(next);
                         }} className="w-3.5 h-3.5"/>
                       </td>
-                      <td className="px-3 py-2 font-medium text-white text-sm">{lead.name || "—"}</td>
-                      <td className="px-3 py-2 text-blue-400 font-mono text-xs">{lead.phone || "—"}</td>
-                      <td className="px-3 py-2 text-slate-300 text-xs">{lead.region || "—"}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 font-medium text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={lead.name}>{lead.name || "—"}</td>
+                      <td className="px-3 py-2 text-blue-400 font-mono text-xs shrink-0">{lead.phone || "—"}</td>
+                      <td className="px-3 py-2 text-amber-400 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={lead.email}>{lead.email || "—"}</td>
+                      <td className="px-3 py-2 text-slate-300 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                        {lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-300 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]" title={lead.region}>{lead.region || "—"}</td>
+                      <td className="px-3 py-2 shrink-0">
                         <select value={lead.status} onChange={e => updateStatus(lead.id, e.target.value)}
                           className={`text-xs px-2 py-1 rounded-full border-0 cursor-pointer ${cfg.color} focus:outline-none`}>
                           {Object.entries(STATUS_CONFIG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                         </select>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 shrink-0">
                         {editingNote?.id === lead.id ? (
                           <div className="flex gap-1">
                             <input value={editingNote.text} onChange={e => setEditingNote({id:lead.id,text:e.target.value})}
@@ -521,7 +539,15 @@ export default function ZaloTab() {
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                     placeholder="<p>{Kính chào|Xin chào} Anh/Chị quản lý cửa hàng [Tên]...</p>"></textarea>
                 </div>
-                <p className="text-[10px] text-slate-500">Biến hỗ trợ: <code className="text-blue-400">[Tên]</code>, <code className="text-blue-400">[Website]</code></p>
+                <div className="flex justify-between items-center">
+                  <p className="text-[10px] text-slate-500">Biến hỗ trợ: <code className="text-blue-400">[Tên]</code>, <code className="text-blue-400">[Website]</code></p>
+                  <button onClick={() => setPreviewKey(k => k + 1)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white">🔄 Xáo trộn (Spin) thử</button>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-slate-700/50">
+                  <label className="block text-xs font-medium text-amber-400 mb-2">👀 Xem trước (Preview):</label>
+                  <div key={previewKey} className="bg-slate-950 p-4 rounded-lg text-sm text-slate-300 border border-slate-800 prose prose-invert max-w-none" dangerouslySetInnerHTML={{__html: getPreviewHtml()}}></div>
+                </div>
               </div>
             </div>
           </div>
