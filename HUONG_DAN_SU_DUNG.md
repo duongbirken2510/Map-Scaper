@@ -9,6 +9,7 @@ Chào mừng bạn đến với **Stepwell Scraper** — Công cụ trích xuấ
 2. [Quản Lý & Xuất Dữ Liệu (Lịch sử DB)](#2-quản-lý--xuất-dữ-liệu-lịch-sử-db)
 3. [Đăng Nhập Zalo CRM](#3-đăng-nhập-zalo-crm)
 4. [Thực Hiện Chiến Dịch Gửi Tin Nhắn / Kết Bạn Tự Động](#4-thực-hiện-chiến-dịch-gửi-tin-nhắn--kết-bạn-tự-động)
+5. [Trạm Gửi Email Chào Hàng Hàng Loạt (Cold Email)](#5-trạm-gửi-email-chào-hàng-hàng-loạt-cold-email)
 
 ---
 
@@ -88,3 +89,27 @@ Sau khi cào dữ liệu và đăng nhập Zalo thành công, bạn đã sẵn s
 ### 4.3. Quản Lý Trạng Thái (CRM Funnel)
 - Nếu khách hàng đồng ý lời mời, bạn có thể chuyển trạng thái thủ công thành **"Khách hàng"** hoặc **"Đã phản hồi"** trong bảng.
 - Bấm vào nút **"+ Ghi chú"** ở mỗi dòng để lưu lại các thông tin đàm phán quan trọng với từng đầu mối.
+
+---
+
+## 5. Trạm Gửi Email Chào Hàng Hàng Loạt (Cold Email)
+
+Phiên bản **V1.1** cung cấp hệ thống tiếp cận khách hàng qua Email cực kỳ mạnh mẽ, được tích hợp thẳng vào Database.
+
+### 5.1. Cấu hình Máy chủ (SMTP)
+1. Chuyển sang thẻ **"📧 Email Outreach"**.
+2. Nhập địa chỉ Gmail/Outlook của bạn vào ô **Tài khoản Email**.
+3. Nhập **Mật khẩu ứng dụng (App Password)** (Lưu ý: Bắt buộc dùng App Password do Google cung cấp, không dùng mật khẩu đăng nhập thông thường).
+4. Bấm **Lưu cấu hình**.
+
+### 5.2. Soạn thảo Nội dung (Spintax)
+Công nghệ Spintax giúp xáo trộn nội dung email tự động để tránh bộ lọc Spam của Gmail.
+- **Sử dụng Spintax:** Bọc các từ đồng nghĩa vào trong ngoặc nhọn `{}` và ngăn cách bằng dấu `|`. (Ví dụ: `{Chào|Xin chào} [Tên]`).
+- **Biến hỗ trợ:** `[Tên]` (Sẽ thay bằng tên khách hàng) và `[Website]` (Sẽ thay bằng website khách hàng).
+- **Mẫu có sẵn:** Ứng dụng đã được tích hợp sẵn một mẫu thư chào hàng chuyên nghiệp xưng Anh/Chị từ xưởng giày Tigish. Bạn có thể sử dụng luôn hoặc chỉnh sửa tùy ý.
+
+### 5.3. Khởi chạy Gửi Email Hàng Loạt
+1. Quay lại tab phụ **"📋 CRM Leads"**.
+2. Chọn những khách hàng bạn muốn gửi (Khuyến nghị: Chỉ chọn khách hàng có SĐT và Email).
+3. Bấm nút **"📧 Gửi Email"**. Hệ thống sẽ tự động ghép tên, trộn nội dung thư và tiến hành gửi tuần tự với khoảng trễ (Delay) ngẫu nhiên.
+4. Những khách hàng nào không có Email, hệ thống sẽ báo **"Không có Email"** và tự động bỏ qua để chuyển sang người tiếp theo một cách an toàn.

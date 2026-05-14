@@ -1,12 +1,18 @@
-# Stepwell Scraper (Tidu Map Scraper)
+# Stepwell Scraper V1.1 (Tidu Map Scraper)
 
-Stepwell Scraper là một hệ thống Desktop Application mạnh mẽ kết hợp giữa **Khai thác dữ liệu Google Maps (Scraping)** và **Quản lý khách hàng Zalo (Zalo CRM)**. Ứng dụng giúp tự động hóa quá trình tìm kiếm khách hàng tiềm năng B2B và thực hiện các chiến dịch tiếp cận tự động qua Zalo.
+Stepwell Scraper là một hệ thống Desktop Application mạnh mẽ kết hợp giữa **Khai thác dữ liệu Google Maps (Scraping)**, **Tiếp thị Zalo (Zalo CRM)** và **Gửi thư hàng loạt (Email Outreach)**. Ứng dụng giúp tự động hóa quá trình tìm kiếm khách hàng tiềm năng B2B và thực hiện các chiến dịch tiếp cận đa kênh tự động.
 
-## 🚀 Tính năng chính
+## 🚀 Tính năng mới trong V1.1 (Cập nhật 15/05/2026)
+- **Deep Crawling (Trích xuất Sâu):** Tự động vào thẳng website của khách hàng từ Google Maps để truy quét Email liên hệ.
+- **Trạm Gửi Email Chào Hàng (Cold Email):** Hỗ trợ gửi email hàng loạt thông qua giao thức SMTP.
+- **Công nghệ Spintax:** Trộn văn bản ngẫu nhiên để lách bộ lọc Spam của Gmail/Outlook (Ví dụ: `{Chào|Xin chào} [Tên]`).
+- **Cơ chế UPSERT thông minh:** Cập nhật và làm giàu dữ liệu cũ mà không gây trùng lặp.
+
+## 🌟 Tính năng chính
 
 1. **Google Maps Scraper:**
-   - Tìm kiếm và trích xuất dữ liệu địa điểm (Tên, SĐT, Địa chỉ, Khu vực) tự động.
-   - Hỗ trợ lưu trữ trực tiếp vào CSDL SQLite (`leads.db`).
+   - Tìm kiếm và trích xuất dữ liệu địa điểm (Tên, SĐT, Địa chỉ, Khu vực, Website, Email) tự động.
+   - Hỗ trợ lưu trữ trực tiếp vào CSDL SQLite (`scraper_v2.db`).
    - Xuất dữ liệu đa dạng theo từng khu vực hoặc toàn bộ danh sách ra định dạng Excel (`.xlsx`).
 
 2. **Zalo CRM & Automation:**
