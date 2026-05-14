@@ -159,38 +159,39 @@ impl Drop for ZaloSidecar {
 }
 
 fn find_sidecar_dir() -> Result<PathBuf, String> {
-    // 1. Dev mode: check src-tauri/zalo-sidecar first (where node_modules definitely exists)
+    // 1. Dev mode: check absolute source path first (where node_modules definitely exists)
     if let Ok(cwd) = std::env::current_dir() {
-        let dev_dir = cwd.join("src-tauri").join("zalo-sidecar");
-        if dev_dir.join("index.mjs").exists() {
-            return Ok(dev_dir);
+        let root_dev = cwd.join("src-tauri").join("zalo-sidecar");
+        if root_dev.join("index.mjs").exists() {
+            return Ok(root_dev);
+        }
+        let tauri_dev = cwd.join("zalo-sidecar");
+        if tauri_dev.join("index.mjs").exists() {
+            return Ok(tauri_dev);
         }
     }
-    let cwd_candidate = PathBuf::from("src-tauri/zalo-sidecar");
-    if cwd_candidate.join("index.mjs").exists() {
-        return Ok(cwd_candidate);
-    }
 
-    // 2. Production / fallback: check relative to executable
     if let Ok(exe) = std::env::current_exe() {
         let dir = exe.parent().unwrap_or(Path::new("."));
+        
+        // 2. Look up the tree for src-tauri (works when running from target/debug)
+        let dev_candidate = dir.ancestors().find_map(|p| {
+            if p.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
+                let c = p.join("zalo-sidecar");
+                if c.join("index.mjs").exists() {
+                    return Some(c);
+                }
+            }
+            None
+        });
+        if let Some(c) = dev_candidate {
+            return Ok(c);
+        }
+
+        // 3. Production / fallback: check relative to executable
         let candidate = dir.join("zalo-sidecar");
         if candidate.join("index.mjs").exists() {
             return Ok(candidate);
-        }
-        
-        let dev_candidate = dir
-            .ancestors()
-            .find_map(|p| {
-                let c = p.join("src-tauri").join("zalo-sidecar");
-                if c.join("index.mjs").exists() {
-                    Some(c)
-                } else {
-                    None
-                }
-            });
-        if let Some(c) = dev_candidate {
-            return Ok(c);
         }
     }
 
