@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import ZaloTab from "./ZaloTab";
 import "./App.css";
+import appLogo from "./assets/logo.png";
 
 // ============================================================
 // Types
@@ -202,10 +203,10 @@ function App() {
       {/* ── Header ── */}
       <header className="flex items-center justify-between px-6 py-3 bg-slate-900 border-b border-slate-700/60 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-lg">📍</div>
+          <img src={appLogo} alt="StepWell Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
           <div>
-            <h1 className="text-base font-bold text-white leading-none">Tidu Map Scraper</h1>
-            <p className="text-xs text-slate-400 mt-0.5">Thu thập khách hàng tiềm năng từ Google Maps</p>
+            <h1 className="text-lg font-bold text-white leading-none">StepWell Scraper</h1>
+            <p className="text-xs text-slate-400 mt-1">Thu thập khách hàng tiềm năng từ Google Maps</p>
           </div>
         </div>
         <div className="flex items-center gap-5 text-sm">
