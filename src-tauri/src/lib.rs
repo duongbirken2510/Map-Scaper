@@ -1,4 +1,5 @@
 mod database;
+mod mailer;
 mod scraper;
 mod zalo;
 
@@ -203,6 +204,26 @@ async fn zalo_start_outreach(
 // App Entry Point
 // ============================================================
 
+// ============================================================
+// Email Commands
+// ============================================================
+
+#[tauri::command]
+async fn test_email(
+    config: mailer::SmtpConfig,
+    to_email: String,
+    subject: String,
+    body: String,
+) -> Result<String, String> {
+    // Run blocking task in async context
+    tokio::task::spawn_blocking(move || {
+        mailer::send_email_sync(&config, &to_email, &subject, &body)?;
+        Ok(format!("Gửi thử email tới {} thành công!", to_email))
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -251,6 +272,8 @@ pub fn run() {
             zalo_check_session,
             zalo_start_qr_login,
             zalo_start_outreach,
+            // Email
+            test_email,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

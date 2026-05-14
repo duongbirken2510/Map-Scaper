@@ -380,13 +380,13 @@ impl Database {
     pub fn get_crm_leads(&self, status_filter: Option<&str>) -> SqlResult<Vec<CrmLead>> {
         let sql = if let Some(s) = status_filter {
             format!(
-                "SELECT id, name, phone, address, region, keyword, status, zalo_found,
+                "SELECT id, name, phone, address, region, keyword, website, email, status, zalo_found,
                         friend_sent_at, friend_accepted_at, first_msg_sent_at, last_reply_at,
                         note, scraped_at, converted_at
                  FROM leads WHERE status = '{}' ORDER BY id DESC", s
             )
         } else {
-            "SELECT id, name, phone, address, region, keyword, status, zalo_found,
+            "SELECT id, name, phone, address, region, keyword, website, email, status, zalo_found,
                     friend_sent_at, friend_accepted_at, first_msg_sent_at, last_reply_at,
                     note, scraped_at, converted_at
              FROM leads ORDER BY id DESC".to_string()
@@ -402,15 +402,17 @@ impl Database {
                     address: row.get(3)?,
                     region: row.get(4)?,
                     keyword: row.get(5)?,
-                    status: row.get(6)?,
-                    zalo_found: row.get::<_, i64>(7).unwrap_or(0) == 1,
-                    friend_sent_at: row.get(8)?,
-                    friend_accepted_at: row.get(9)?,
-                    first_msg_sent_at: row.get(10)?,
-                    last_reply_at: row.get(11)?,
-                    note: row.get(12)?,
-                    scraped_at: row.get(13)?,
-                    converted_at: row.get(14)?,
+                    website: row.get(6).unwrap_or_default(),
+                    email: row.get(7).unwrap_or_default(),
+                    status: row.get(8)?,
+                    zalo_found: row.get::<_, i64>(9).unwrap_or(0) == 1,
+                    friend_sent_at: row.get(10)?,
+                    friend_accepted_at: row.get(11)?,
+                    first_msg_sent_at: row.get(12)?,
+                    last_reply_at: row.get(13)?,
+                    note: row.get(14)?,
+                    scraped_at: row.get(15)?,
+                    converted_at: row.get(16)?,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -507,6 +509,8 @@ pub struct CrmLead {
     pub address: String,
     pub region: String,
     pub keyword: String,
+    pub website: String,
+    pub email: String,
     pub status: String,
     pub zalo_found: bool,
     pub friend_sent_at: Option<String>,

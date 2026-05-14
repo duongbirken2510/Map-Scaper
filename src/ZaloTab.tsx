@@ -10,7 +10,7 @@ interface OutreachProgress {
 }
 interface CrmLead {
   id: number; name: string; phone: string; address: string;
-  region: string; keyword: string; status: string; zalo_found: boolean;
+  region: string; keyword: string; website: string; email: string; status: string; zalo_found: boolean;
   note: string; scraped_at: string;
   friend_sent_at?: string; friend_accepted_at?: string; first_msg_sent_at?: string;
 }
@@ -44,7 +44,7 @@ export default function ZaloTab() {
   const [outreachLogs, setOutreachLogs] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [settings, setSettings] = useState<Record<string,string>>({});
-  const [activeSection, setActiveSection] = useState<"zalo"|"crm"|"settings">("zalo");
+  const [activeSection, setActiveSection] = useState<"zalo"|"crm"|"settings"|"email">("zalo");
 
   // Login form fields
   const [loginCookie, setLoginCookie] = useState("");
@@ -152,7 +152,7 @@ export default function ZaloTab() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Sub-nav */}
       <div className="flex gap-1 px-4 py-2 bg-slate-900/70 border-b border-slate-700/40 shrink-0">
-        {([["zalo","🔗 Kết nối Zalo"],["crm","📋 CRM Leads"],["settings","⚙️ Cài đặt"]] as const).map(([k,l]) => (
+        {([["zalo","🔗 Kết nối Zalo"],["crm","📋 CRM Leads"],["email","📧 Email Outreach"],["settings","⚙️ Cài đặt"]] as const).map(([k,l]) => (
           <button key={k} onClick={() => setActiveSection(k)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${activeSection === k ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
             {l}
@@ -440,6 +440,57 @@ export default function ZaloTab() {
                 Không có leads nào với bộ lọc này.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── EMAIL OUTREACH SECTION ── */}
+      {activeSection === "email" && (
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-900/30 p-6">
+          <div className="max-w-5xl mx-auto w-full space-y-6">
+            <h2 className="text-lg font-semibold text-white">📧 Trạm Gửi Email Chào Hàng (Cold Email)</h2>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
+                <h3 className="font-medium text-slate-200">1. Cấu hình Máy chủ (SMTP)</h3>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Tài khoản Email (Gmail/Outlook)</label>
+                  <input type="text" value={settings["smtp_email"] || ""}
+                    onChange={e => setSettings(s => ({...s, smtp_email: e.target.value}))}
+                    placeholder="vidu@gmail.com"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Mật khẩu ứng dụng (App Password)</label>
+                  <input type="password" value={settings["smtp_password"] || ""}
+                    onChange={e => setSettings(s => ({...s, smtp_password: e.target.value}))}
+                    placeholder="xxxx xxxx xxxx xxxx"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500" />
+                  <p className="text-[10px] text-amber-400/80 mt-1.5">Lưu ý: Bạn phải dùng "Mật khẩu ứng dụng" (App Password), không phải mật khẩu đăng nhập bình thường.</p>
+                </div>
+                <div className="pt-2">
+                  <button onClick={saveSettings} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-all">Lưu cấu hình</button>
+                </div>
+              </div>
+
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
+                <h3 className="font-medium text-slate-200">2. Soạn thảo Nội dung</h3>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Tiêu đề (Subject)</label>
+                  <input type="text" value={settings["email_subject"] || ""}
+                    onChange={e => setSettings(s => ({...s, email_subject: e.target.value}))}
+                    placeholder="Thư ngỏ từ đại lý cung cấp giày dép..."
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Nội dung (Hỗ trợ HTML)</label>
+                  <textarea rows={6} value={settings["email_body"] || ""}
+                    onChange={e => setSettings(s => ({...s, email_body: e.target.value}))}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                    placeholder="<h1>Chào [Tên]</h1><br>Chúng tôi là..."></textarea>
+                </div>
+                <p className="text-[10px] text-slate-500">Biến hỗ trợ: <code className="text-blue-400">[Tên]</code>, <code className="text-blue-400">[Website]</code></p>
+              </div>
+            </div>
           </div>
         </div>
       )}
