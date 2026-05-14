@@ -159,14 +159,26 @@ impl Drop for ZaloSidecar {
 }
 
 fn find_sidecar_dir() -> Result<PathBuf, String> {
-    // Try relative to executable
+    // 1. Dev mode: check src-tauri/zalo-sidecar first (where node_modules definitely exists)
+    if let Ok(cwd) = std::env::current_dir() {
+        let dev_dir = cwd.join("src-tauri").join("zalo-sidecar");
+        if dev_dir.join("index.mjs").exists() {
+            return Ok(dev_dir);
+        }
+    }
+    let cwd_candidate = PathBuf::from("src-tauri/zalo-sidecar");
+    if cwd_candidate.join("index.mjs").exists() {
+        return Ok(cwd_candidate);
+    }
+
+    // 2. Production / fallback: check relative to executable
     if let Ok(exe) = std::env::current_exe() {
         let dir = exe.parent().unwrap_or(Path::new("."));
         let candidate = dir.join("zalo-sidecar");
         if candidate.join("index.mjs").exists() {
             return Ok(candidate);
         }
-        // Dev mode: src-tauri/zalo-sidecar
+        
         let dev_candidate = dir
             .ancestors()
             .find_map(|p| {
@@ -180,12 +192,6 @@ fn find_sidecar_dir() -> Result<PathBuf, String> {
         if let Some(c) = dev_candidate {
             return Ok(c);
         }
-    }
-
-    // Fallback: check common dev paths
-    let cwd_candidate = PathBuf::from("src-tauri/zalo-sidecar");
-    if cwd_candidate.join("index.mjs").exists() {
-        return Ok(cwd_candidate);
     }
 
     Err("Không tìm thấy thư mục zalo-sidecar".to_string())
