@@ -274,6 +274,7 @@ pub fn run() {
             zalo_start_outreach,
             // Email
             test_email,
+            mailer::email_start_outreach,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

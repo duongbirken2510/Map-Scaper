@@ -234,6 +234,30 @@ impl Database {
         Ok(leads)
     }
 
+    /// Get a single lead by ID
+    pub fn get_lead_by_id(&self, id: i64) -> SqlResult<Option<DbLead>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, phone, address, region, keyword, website, email, scraped_at
+             FROM leads WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query(params![id])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(DbLead {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                phone: row.get(2)?,
+                address: row.get(3)?,
+                region: row.get(4)?,
+                keyword: row.get(5)?,
+                website: row.get(6).unwrap_or_default(),
+                email: row.get(7).unwrap_or_default(),
+                scraped_at: row.get(8)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Get leads filtered by region.
     pub fn get_leads_by_region(&self, region: &str) -> SqlResult<Vec<DbLead>> {
         let mut stmt = self.conn.prepare(

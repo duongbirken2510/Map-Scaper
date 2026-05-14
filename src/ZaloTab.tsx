@@ -64,8 +64,16 @@ export default function ZaloTab() {
       ]);
       if (p.is_finished) { setIsSending(false); loadCrm(); }
     });
+    const u3 = listen<OutreachProgress>("email_outreach_progress", e => {
+      const p = e.payload;
+      const icon = p.result === "Thành công" ? "✓" : "⚠";
+      setOutreachLogs(prev => [...prev,
+        `[${new Date().toLocaleTimeString("vi-VN")}] ${icon} [${p.done}/${p.total}] Email tới ${p.lead_name} (${p.email}) - ${p.result}`
+      ]);
+      if (p.is_finished) { setIsSending(false); loadCrm(); }
+    });
     const u2 = listen<string>("zalo_qr", e => setQrImage(e.payload));
-    return () => { u1.then(f=>f()); u2.then(f=>f()); };
+    return () => { u1.then(f=>f()); u2.then(f=>f()); u3.then(f=>f()); };
   }, []);
 
   const checkSession = async () => {
@@ -139,6 +147,17 @@ export default function ZaloTab() {
     if (selectedIds.size === 0) return;
     setIsSending(true); setOutreachLogs([]);
     await invoke("zalo_start_outreach", { leadIds: Array.from(selectedIds), action });
+  };
+
+  const startEmailOutreach = async () => {
+    if (selectedIds.size === 0) return;
+    setIsSending(true); setOutreachLogs([]);
+    try {
+      await invoke("email_start_outreach", { leadIds: Array.from(selectedIds) });
+    } catch (e: any) {
+      alert(`Lỗi: ${e}`);
+      setIsSending(false);
+    }
   };
 
   const doSaveSettings = async () => {
@@ -358,6 +377,10 @@ export default function ZaloTab() {
               Chọn tất cả
             </button>
             <div className="flex gap-2 ml-auto">
+              <button onClick={startEmailOutreach} disabled={isSending || selectedIds.size === 0}
+                className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg disabled:opacity-40 transition-all">
+                📧 Gửi Email ({selectedIds.size})
+              </button>
               <button onClick={() => startOutreach("FRIEND")} disabled={!status?.logged_in || isSending || selectedIds.size === 0}
                 className="px-3 py-1.5 text-xs bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg disabled:opacity-40 transition-all">
                 🤝 Gửi kết bạn ({selectedIds.size})
