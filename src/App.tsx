@@ -368,28 +368,30 @@ function App() {
                   <div className="text-4xl">📭</div><p>Chưa có dữ liệu phiên hiện tại.</p>
                 </div>
               ) : (
-                <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 bg-slate-800 text-slate-300 z-10">
-                    <tr>
-                      {["STT", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Khu vực", "Website", "Email"].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((lead, i) => (
-                      <tr key={lead.stt} className={`border-t border-slate-800 hover:bg-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/30" : "bg-slate-900/60"}`}>
-                        <td className="px-4 py-2.5 text-slate-400 text-center w-12">{lead.stt}</td>
-                        <td className="px-4 py-2.5 font-medium text-white">{lead.name || "—"}</td>
-                        <td className="px-4 py-2.5 text-blue-400 font-mono w-32">{lead.phone || "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-300 text-xs truncate max-w-[200px]">{lead.address || "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-300 text-xs w-28 truncate">{lead.region || "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-300 text-xs w-32 truncate">{lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}</td>
-                        <td className="px-4 py-2.5 text-amber-400 text-xs w-40 truncate">{lead.email || "—"}</td>
+                <div className="overflow-x-auto h-full">
+                  <table className="w-full text-sm border-collapse min-w-[1000px]">
+                    <thead className="sticky top-0 bg-slate-800 text-slate-300 z-10 shadow-sm">
+                      <tr>
+                        {["STT", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Khu vực", "Website", "Email"].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {results.map((lead, i) => (
+                        <tr key={lead.stt} className={`border-t border-slate-800 hover:bg-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/30" : "bg-slate-900/60"}`}>
+                          <td className="px-4 py-2.5 text-slate-400 text-center w-12 shrink-0">{lead.stt}</td>
+                          <td className="px-4 py-2.5 font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={lead.name}>{lead.name || "—"}</td>
+                          <td className="px-4 py-2.5 text-blue-400 font-mono w-32 shrink-0">{lead.phone || "—"}</td>
+                          <td className="px-4 py-2.5 text-slate-300 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[250px]" title={lead.address}>{lead.address || "—"}</td>
+                          <td className="px-4 py-2.5 text-slate-300 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]" title={lead.region}>{lead.region || "—"}</td>
+                          <td className="px-4 py-2.5 text-slate-300 text-xs w-24 shrink-0">{lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}</td>
+                          <td className="px-4 py-2.5 text-amber-400 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]" title={lead.email}>{lead.email || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
@@ -433,29 +435,31 @@ function App() {
                     <p>Chưa có dữ liệu trong database. Hãy cào dữ liệu trước.</p>
                   </div>
                 ) : (
-                  <table className="w-full text-sm border-collapse">
-                    <thead className="sticky top-0 bg-slate-800 text-slate-300 z-10">
-                      <tr>
-                        {["#", "Tên khách hàng", "Số điện thoại", "Khu vực", "Từ khóa", "Website", "Email", "Thời gian cào"].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((lead, i) => (
-                        <tr key={lead.id} className={`border-t border-slate-800 hover:bg-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/30" : "bg-slate-900/60"}`}>
-                          <td className="px-4 py-2 text-slate-500 text-xs w-12">{lead.id}</td>
-                          <td className="px-4 py-2 font-medium text-white text-sm">{lead.name || "—"}</td>
-                          <td className="px-4 py-2 text-blue-400 font-mono text-xs w-32">{lead.phone || "—"}</td>
-                          <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[150px]">{lead.region || "—"}</td>
-                          <td className="px-4 py-2 text-violet-400 text-xs truncate max-w-[150px]">{lead.keyword || "—"}</td>
-                          <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[150px]">{lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}</td>
-                          <td className="px-4 py-2 text-amber-400 text-xs truncate max-w-[180px]">{lead.email || "—"}</td>
-                          <td className="px-4 py-2 text-slate-500 text-xs whitespace-nowrap">{lead.scraped_at}</td>
+                  <div className="overflow-x-auto h-full">
+                    <table className="w-full text-sm border-collapse min-w-[1200px]">
+                      <thead className="sticky top-0 bg-slate-800 text-slate-300 z-10 shadow-sm">
+                        <tr>
+                          {["#", "Tên khách hàng", "Số điện thoại", "Khu vực", "Từ khóa", "Website", "Email", "Thời gian cào"].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {history.map((lead, i) => (
+                          <tr key={lead.id} className={`border-t border-slate-800 hover:bg-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/30" : "bg-slate-900/60"}`}>
+                            <td className="px-4 py-2 text-slate-500 text-xs w-12 shrink-0">{lead.id}</td>
+                            <td className="px-4 py-2 font-medium text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[250px]" title={lead.name}>{lead.name || "—"}</td>
+                            <td className="px-4 py-2 text-blue-400 font-mono text-xs w-32 shrink-0">{lead.phone || "—"}</td>
+                            <td className="px-4 py-2 text-slate-300 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={lead.region}>{lead.region || "—"}</td>
+                            <td className="px-4 py-2 text-violet-400 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]" title={lead.keyword}>{lead.keyword || "—"}</td>
+                            <td className="px-4 py-2 text-slate-300 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">{lead.website ? <a href={lead.website} target="_blank" className="text-blue-400 hover:underline">Link</a> : "—"}</td>
+                            <td className="px-4 py-2 text-amber-400 text-xs whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={lead.email}>{lead.email || "—"}</td>
+                            <td className="px-4 py-2 text-slate-500 text-xs whitespace-nowrap w-36 shrink-0">{lead.scraped_at}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>

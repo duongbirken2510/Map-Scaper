@@ -22,6 +22,7 @@ interface CrmStats {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   NEW:             { label: "Mới",           color: "bg-slate-600 text-slate-200" },
+  SENT_EMAIL:      { label: "Đã gửi Email",  color: "bg-indigo-600 text-indigo-100" },
   SENT_FRIEND:     { label: "Đã KBạn",       color: "bg-yellow-600 text-yellow-100" },
   SENT_MSG:        { label: "Đã nhắn",       color: "bg-blue-600 text-blue-100" },
   FRIEND_ACCEPTED: { label: "Đã chấp nhận",  color: "bg-emerald-600 text-emerald-100" },
@@ -345,6 +346,7 @@ export default function ZaloTab() {
             <div className="flex items-center gap-3 px-4 py-3 bg-slate-900/50 border-b border-slate-700/40 shrink-0 overflow-x-auto">
               {[
                 ["Mới", crmStats.new, "text-slate-300"],
+                ["Đã gửi Email", crmLeads.filter(l => l.status === "SENT_EMAIL").length, "text-indigo-400"],
                 ["Đã gửi KBạn", crmStats.sent_friend, "text-yellow-400"],
                 ["Đã nhắn tin", crmStats.sent_msg, "text-blue-400"],
                 ["Đã chấp nhận", crmStats.friend_accepted, "text-emerald-400"],
