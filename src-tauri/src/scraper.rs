@@ -170,22 +170,7 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
                     && !normalized_phone.is_empty()
                     && leads.iter().any(|l| normalize_phone(&l.phone) == normalized_phone);
 
-                if is_dup_in_db || is_dup_in_session {
-                    skipped_count += 1;
-                    let source = if is_dup_in_db { "DB toàn hệ thống" } else { "phiên này" };
-                    emit_progress(
-                        &app,
-                        &format!("⊘ Bỏ qua (trùng {} - SĐT: {}): {}", source, normalized_phone, lead_data.name),
-                        leads.len(),
-                        skipped_count,
-                        false,
-                        None,
-                    );
-                    continue;
-                }
-
                 let region = extract_region(&lead_data.address, &config.region);
-                let stt = leads.len() + 1;
 
                 let mut email = String::new();
                 if config.deep_crawl && !lead_data.website.is_empty() {
@@ -200,7 +185,7 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
                     email = extract_email_from_website(&lead_data.website).await;
                 }
 
-                // Save to SQLite immediately
+                // UPSERT to SQLite (updates website/email if phone already exists)
                 let _ = db.insert_lead(
                     &lead_data.name,
                     &normalized_phone,
@@ -211,6 +196,21 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
                     &email,
                 );
 
+                if is_dup_in_db || is_dup_in_session {
+                    skipped_count += 1;
+                    let source = if is_dup_in_db { "DB toàn hệ thống" } else { "phiên này" };
+                    emit_progress(
+                        &app,
+                        &format!("⊘ Bỏ qua (trùng {} - Đã cập nhật Web/Email nếu có): {}", source, lead_data.name),
+                        leads.len(),
+                        skipped_count,
+                        false,
+                        None,
+                    );
+                    continue;
+                }
+
+                let stt = leads.len() + 1;
                 emit_progress(
                     &app,
                     &format!("✓ [{}/{}] {} | {}", stt, config.limit, lead_data.name, lead_data.phone),

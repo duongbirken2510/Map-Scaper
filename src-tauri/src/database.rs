@@ -93,11 +93,6 @@ impl Database {
                 email       TEXT    NOT NULL DEFAULT '',
                 scraped_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
             );
-
-            -- Attempt to add columns if upgrading from old version
-            ALTER TABLE leads ADD COLUMN website TEXT DEFAULT '';
-            ALTER TABLE leads ADD COLUMN email TEXT DEFAULT '';
-
             -- Unique index on normalized phone (non-empty only)
             CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_phone
                 ON leads(phone)
@@ -130,6 +125,8 @@ impl Database {
             "ALTER TABLE leads ADD COLUMN last_reply_at TEXT",
             "ALTER TABLE leads ADD COLUMN note TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN converted_at TEXT",
+            "ALTER TABLE leads ADD COLUMN website TEXT DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN email TEXT DEFAULT ''",
         ];
         for sql in &migrations {
             let _ = self.conn.execute(sql, []); // ignore "duplicate column" errors
@@ -185,8 +182,11 @@ impl Database {
         email: &str,
     ) -> SqlResult<bool> {
         let rows = self.conn.execute(
-            "INSERT OR IGNORE INTO leads (name, phone, address, region, keyword, website, email)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO leads (name, phone, address, region, keyword, website, email)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT (phone) WHERE phone != '' DO UPDATE SET
+                website = CASE WHEN excluded.website != '' THEN excluded.website ELSE leads.website END,
+                email = CASE WHEN excluded.email != '' THEN excluded.email ELSE leads.email END",
             params![name, phone, address, region, keyword, website, email],
         )?;
         Ok(rows > 0)
