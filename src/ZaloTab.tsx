@@ -478,7 +478,7 @@ export default function ZaloTab() {
                   <label className="block text-xs font-medium text-slate-400 mb-1">Tiêu đề (Subject)</label>
                   <input type="text" value={settings["email_subject"] || ""}
                     onChange={e => setSettings(s => ({...s, email_subject: e.target.value}))}
-                    placeholder="Thư ngỏ từ đại lý cung cấp giày dép..."
+                    placeholder="{Hợp tác|Thư ngỏ|Gửi thư từ xưởng giày Tigish} - Gửi quản lý cửa hàng [Tên]"
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
@@ -486,7 +486,7 @@ export default function ZaloTab() {
                   <textarea rows={6} value={settings["email_body"] || ""}
                     onChange={e => setSettings(s => ({...s, email_body: e.target.value}))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 resize-none font-mono"
-                    placeholder="<h1>Chào [Tên]</h1><br>Chúng tôi là..."></textarea>
+                    placeholder="<p>{Kính chào|Xin chào} Anh/Chị quản lý cửa hàng [Tên]...</p>"></textarea>
                 </div>
                 <p className="text-[10px] text-slate-500">Biến hỗ trợ: <code className="text-blue-400">[Tên]</code>, <code className="text-blue-400">[Website]</code></p>
               </div>
