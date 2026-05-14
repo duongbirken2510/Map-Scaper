@@ -128,7 +128,8 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
             0, 0, false, None,
         );
 
-        if all_urls.len() >= config.limit || scroll_rounds >= max_scroll_rounds {
+        let target_urls = if config.deduplicate { config.limit * 5 } else { config.limit };
+        if all_urls.len() >= target_urls || scroll_rounds >= max_scroll_rounds {
             break;
         }
 
@@ -144,7 +145,8 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
     }
 
     // Limit to requested amount
-    all_urls.truncate(config.limit * 3); // collect more to account for dedup
+    let target_urls = if config.deduplicate { config.limit * 5 } else { config.limit };
+    all_urls.truncate(target_urls); // collect more to account for dedup
 
     // Step 2: Visit each URL and extract details
     emit_progress(&app, &format!("Bắt đầu trích xuất chi tiết {} địa điểm...", all_urls.len()), 0, 0, false, None);
