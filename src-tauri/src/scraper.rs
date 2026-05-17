@@ -68,10 +68,26 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
 
     let chrome_path = find_chrome_path();
 
+    // FIX: Chrome SingletonLock error — occurs when a previous Chrome session
+    // crashed or wasn't cleaned up, leaving a stale lock file in the shared
+    // profile directory. Using a unique per-session user-data-dir avoids this
+    // entirely: each scrape gets its own fresh Chrome profile in /tmp.
+    let session_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let user_data_dir = std::env::temp_dir().join(format!("stepwell-chrome-{}", session_ts));
+    let _ = std::fs::create_dir_all(&user_data_dir);
+    let user_data_arg = format!("--user-data-dir={}", user_data_dir.display());
+
     let browser_config = BrowserConfig::builder()
         .chrome_executable(chrome_path)
         .no_sandbox()
         .window_size(1280, 900)
+        .arg("--disable-background-networking")
+        .arg("--disable-sync")
+        .arg("--no-first-run")
+        .arg(&user_data_arg)
         .build()
         .map_err(|e| format!("Không thể cấu hình trình duyệt: {}", e))?;
 
@@ -246,6 +262,8 @@ async fn run_scraper(app: AppHandle, config: ScrapeConfig, db_path: PathBuf) -> 
     }
 
     let _ = browser.close().await;
+    // Cleanup temp Chrome profile dir (no longer needed after session)
+    let _ = std::fs::remove_dir_all(&user_data_dir);
 
     let total = leads.len();
     emit_progress(
