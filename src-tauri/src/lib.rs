@@ -8,7 +8,7 @@ use scraper::{Lead, ScrapeConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use zalo::{OutreachConfig, ZaloStatus};
 
 // ============================================================
@@ -151,14 +151,26 @@ fn zalo_check_session(state: State<AppState>) -> Result<ZaloStatus, String> {
     zalo::zalo_login_saved(&session_dir)
 }
 
-/// Login with QR Code
+/// Login with QR Code — fire-and-forget, emits 'zalo_login_result' event when done
 #[tauri::command]
 fn zalo_start_qr_login(
     app: AppHandle,
     state: State<AppState>,
-) -> Result<ZaloStatus, String> {
+) -> Result<String, String> {
     let session_dir = state.session_dir.lock().map_err(|e| e.to_string())?.clone();
-    zalo::zalo_login_qr(&app, &session_dir)
+
+    // Spawn a background OS thread so the UI stays fully responsive.
+    // zalo_login_qr() holds the SIDECAR mutex while waiting for QR scan (up to 60s).
+    // Running it in the main command thread would block ALL other sidecar operations.
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        match zalo::zalo_login_qr(&app_clone, &session_dir) {
+            Ok(status)  => { let _ = app_clone.emit("zalo_login_result", status); }
+            Err(e)      => { let _ = app_clone.emit("zalo_login_error", e); }
+        }
+    });
+
+    Ok("QR login started — waiting for QR scan...".to_string())
 }
 
 /// Start outreach to selected leads

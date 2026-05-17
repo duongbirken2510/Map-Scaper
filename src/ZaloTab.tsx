@@ -77,7 +77,21 @@ export default function ZaloTab() {
       if (p.is_finished) { setIsSending(false); loadCrm(); }
     });
     const u2 = listen<string>("zalo_qr", e => setQrImage(e.payload));
-    return () => { u1.then(f=>f()); u2.then(f=>f()); u3.then(f=>f()); };
+
+    // FIX: QR login result comes via event (not invoke response)
+    // because the backend runs it in a background thread to keep UI responsive
+    const u4 = listen<ZaloStatus>("zalo_login_result", e => {
+      setStatus(e.payload);
+      if (e.payload.logged_in) setQrImage("");
+      setIsLoggingIn(false);
+    });
+    const u5 = listen<string>("zalo_login_error", e => {
+      setLoginError(e.payload);
+      setStatus({ logged_in: false, message: `Lỗi: ${e.payload}`, session_file: "" });
+      setIsLoggingIn(false);
+    });
+
+    return () => { u1.then(f=>f()); u2.then(f=>f()); u3.then(f=>f()); u4.then(f=>f()); u5.then(f=>f()); };
   }, []);
 
   const checkSession = async () => {
@@ -91,13 +105,14 @@ export default function ZaloTab() {
   const startQrLogin = async () => {
     setIsLoggingIn(true); setLoginError(""); setQrImage("");
     try {
-      const s = await invoke<ZaloStatus>("zalo_start_qr_login");
-      setStatus(s);
-      if (s.logged_in) setQrImage("");
+      // Fire-and-forget: backend spawns background thread, returns immediately.
+      // Actual result (ZaloStatus) comes via 'zalo_login_result' or 'zalo_login_error' events.
+      await invoke("zalo_start_qr_login");
+      // isLoggingIn stays true — will be reset when event arrives
     } catch (e: any) {
       setLoginError(String(e));
-      setStatus({ logged_in: false, message: `Lỗi: ${e}`, session_file: "" });
-    } finally { setIsLoggingIn(false); }
+      setIsLoggingIn(false);
+    }
   };
 
   const doLogin = async () => {
