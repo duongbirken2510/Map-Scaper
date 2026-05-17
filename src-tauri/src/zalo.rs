@@ -68,7 +68,11 @@ impl ZaloSidecar {
             ));
         }
 
-        let mut cmd = Command::new("node");
+        // FIX: macOS .app bundles don't inherit shell PATH, so 'node' command fails.
+        // We must resolve the full path to node binary explicitly.
+        let node_bin = find_node_binary()?;
+
+        let mut cmd = Command::new(&node_bin);
         cmd.arg(&index_path)
             .arg(session_dir.to_string_lossy().to_string())
             .stdin(Stdio::piped())
@@ -80,8 +84,8 @@ impl ZaloSidecar {
         let mut child = cmd.spawn()
             .map_err(|e| {
                 format!(
-                    "Không thể khởi động Node.js: {}. Hãy đảm bảo Node.js đã được cài đặt.",
-                    e
+                    "Không thể khởi động Node.js ({}): {}. Hãy đảm bảo Node.js đã được cài đặt.",
+                    node_bin, e
                 )
             })?;
 
@@ -206,6 +210,65 @@ fn find_sidecar_dir() -> Result<PathBuf, String> {
     }
 
     Err("Không tìm thấy thư mục zalo-sidecar. Hãy đảm bảo ứng dụng được cài đặt đúng cách.".to_string())
+}
+
+/// Find the Node.js binary path.
+///
+/// macOS .app bundles do NOT inherit the user's shell PATH (set in ~/.zshrc, ~/.bashrc etc).
+/// So `Command::new("node")` will fail with "No such file or directory" even if Node is
+/// installed. We must search common installation directories explicitly.
+fn find_node_binary() -> Result<String, String> {
+    // Common Node.js installation paths on macOS / Linux / Windows
+    let candidates = [
+        // macOS Homebrew (Apple Silicon)
+        "/opt/homebrew/bin/node",
+        // macOS Homebrew (Intel) / Linux system
+        "/usr/local/bin/node",
+        // Linux system package manager
+        "/usr/bin/node",
+        "/usr/bin/nodejs",
+        // macOS/Linux nvm (common default version dirs)
+        "/usr/local/nvm/versions/node/v20/bin/node",
+        "/usr/local/nvm/versions/node/v18/bin/node",
+        "/usr/local/nvm/versions/node/v22/bin/node",
+        "/usr/local/nvm/versions/node/v24/bin/node",
+        // Windows
+        r"C:\Program Files\nodejs\node.exe",
+        r"C:\Program Files (x86)\nodejs\node.exe",
+    ];
+
+    // Check explicit paths first
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Ok(path.to_string());
+        }
+    }
+
+    // Check nvm user directory (e.g. ~/.nvm/versions/node/vX.Y.Z/bin/node)
+    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+        let nvm_base = std::path::Path::new(&home).join(".nvm").join("versions").join("node");
+        if nvm_base.exists() {
+            // Find any node version, prefer highest
+            if let Ok(entries) = std::fs::read_dir(&nvm_base) {
+                let mut versions: Vec<std::path::PathBuf> = entries
+                    .flatten()
+                    .map(|e| e.path().join("bin").join("node"))
+                    .filter(|p| p.exists())
+                    .collect();
+                versions.sort();
+                if let Some(latest) = versions.last() {
+                    return Ok(latest.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    // Last resort: rely on PATH (works in dev/terminal mode)
+    if std::process::Command::new("node").arg("--version").output().is_ok() {
+        return Ok("node".to_string());
+    }
+
+    Err("Không tìm thấy Node.js. Vui lòng cài đặt Node.js từ https://nodejs.org (LTS version) và khởi động lại ứng dụng.".to_string())
 }
 
 // ============================================================
