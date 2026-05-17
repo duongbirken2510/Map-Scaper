@@ -1,37 +1,74 @@
-image: rust:latest
+image: ubuntu:22.04
 
 variables:
-  # Đảm bảo NodeJS không hỏi tương tác khi cài đặt
   DEBIAN_FRONTEND: noninteractive
+  RUST_VERSION: "1.87.0"
+  NODE_VERSION: "20"
 
 stages:
   - build
 
 build-linux:
   stage: build
+  before_script:
+    # ── 1. Hệ thống cơ bản ──────────────────────────────────────────
+    - apt-get update -qq
+    - apt-get install -y -qq
+        curl wget file git
+        build-essential pkg-config
+        libssl-dev
+        # Tauri / WebKit
+        libwebkit2gtk-4.1-dev
+        libgtk-3-dev
+        libayatana-appindicator3-dev
+        librsvg2-dev
+        libglib2.0-dev
+        libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev
+        patchelf
+        # AppImage
+        fuse libfuse2
+
+    # ── 2. Node.js ──────────────────────────────────────────────────
+    - curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
+    - apt-get install -y -qq nodejs
+    - node --version && npm --version
+
+    # ── 3. Rust (cài qua rustup để đảm bảo đúng phiên bản) ─────────
+    - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_VERSION}
+    - source "$HOME/.cargo/env"
+    - rustc --version && cargo --version
+
+    # ── 4. Tauri CLI ────────────────────────────────────────────────
+    - cargo install tauri-cli --version "^2" --locked
+
   script:
-    # 1. Cài đặt các thư viện lõi của Linux mà Tauri yêu cầu (WebKit, GTK, v.v)
-    - apt-get update
-    - apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
-    
-    # 2. Cài đặt Node.js (v18)
-    - curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-    - apt-get install -y nodejs
-    
-    # 3. Cài đặt thư viện Node.js cho dự án gốc
-    - npm install
-    
-    # 4. Cài đặt thư viện Node.js cho zalo-sidecar (Rất quan trọng để build thành công)
-    - cd src-tauri/zalo-sidecar
-    - npm install
-    - cd ../..
-    
-    # 5. Build ứng dụng Tauri cho Linux (tạo file .AppImage và .deb)
-    - npm run tauri build
+    # ── 5. Cài Node.js deps cho dự án gốc ──────────────────────────
+    - source "$HOME/.cargo/env"
+    - npm ci
+
+    # ── 6. Cài Node.js deps cho zalo-sidecar ───────────────────────
+    - cd src-tauri/zalo-sidecar && npm ci && cd ../..
+
+    # ── 7. Build Tauri → tạo .deb + .AppImage ──────────────────────
+    - npm run tauri build -- --bundles deb,appimage
 
   artifacts:
+    name: "stepwell-scraper-linux-${CI_COMMIT_SHORT_SHA}"
     paths:
-      # Lưu lại các file cài đặt đã build thành công để tải về
       - src-tauri/target/release/bundle/deb/*.deb
       - src-tauri/target/release/bundle/appimage/*.AppImage
-    expire_in: 1 week
+    expire_in: 2 weeks
+    when: on_success
+
+  # Cache Rust và npm để lần build sau nhanh hơn
+  cache:
+    key:
+      files:
+        - src-tauri/Cargo.lock
+        - package-lock.json
+    paths:
+      - src-tauri/target/
+      - node_modules/
+      - src-tauri/zalo-sidecar/node_modules/
+      - $HOME/.cargo/registry/
