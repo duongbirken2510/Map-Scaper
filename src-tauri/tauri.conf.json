@@ -36,6 +36,9 @@
     "resources": {
       "zalo-sidecar/bundle.cjs": "zalo-sidecar/bundle.cjs",
       "zalo-sidecar/package.json": "zalo-sidecar/package.json"
-    }
+    },
+    "externalBin": [
+      "binaries/node"
+    ]
   }
 }

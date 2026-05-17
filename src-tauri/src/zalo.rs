@@ -211,61 +211,92 @@ fn find_sidecar_dir() -> Result<PathBuf, String> {
 
 /// Find the Node.js binary path.
 ///
-/// macOS .app bundles do NOT inherit the user's shell PATH (set in ~/.zshrc, ~/.bashrc etc).
-/// So `Command::new("node")` will fail with "No such file or directory" even if Node is
-/// installed. We must search common installation directories explicitly.
+/// Priority order:
+/// 1. Bundled binary shipped with app (via Tauri externalBin) — works on ANY machine
+/// 2. Common system installation paths (dev mode convenience)
+/// 3. nvm user directory
 fn find_node_binary() -> Result<String, String> {
-    // Common Node.js installation paths on macOS / Linux / Windows
-    let candidates = [
-        // macOS Homebrew (Apple Silicon)
-        "/opt/homebrew/bin/node",
-        // macOS Homebrew (Intel) / Linux system
-        "/usr/local/bin/node",
-        // Linux system package manager
-        "/usr/bin/node",
-        "/usr/bin/nodejs",
-        // macOS/Linux nvm (common default version dirs)
+    // ── 1. Bundled binary (added via Tauri externalBin) ─────────────────────
+    // Tauri places externalBin next to the main executable:
+    //   macOS .app: Contents/MacOS/node-aarch64-apple-darwin
+    //   Linux/Win:  <exe_dir>/node-<target_triple>
+    // We also check for a plain "node" symlink which Tauri may create.
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
+
+        // Check with target-triple suffix (Tauri 2 externalBin naming)
+        let target_triple = std::env::consts::ARCH.to_string() + "-" +
+            if cfg!(target_os = "macos") { "apple-darwin" }
+            else if cfg!(target_os = "linux") { "unknown-linux-gnu" }
+            else { "pc-windows-msvc" };
+
+        let variants = [
+            exe_dir.join(format!("node-{}", target_triple)),
+            exe_dir.join("node"),
+        ];
+        for candidate in &variants {
+            if candidate.exists() {
+                return Ok(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // ── 2. Common system installation paths ─────────────────────────────────
+    let system_paths = [
+        "/opt/homebrew/bin/node",        // Homebrew Apple Silicon
+        "/usr/local/bin/node",           // Homebrew Intel / system
+        "/usr/bin/node",                 // Linux system
+        "/usr/bin/nodejs",               // Ubuntu/Debian
+        "/opt/local/bin/node",           // MacPorts
         "/usr/local/nvm/versions/node/v20/bin/node",
         "/usr/local/nvm/versions/node/v18/bin/node",
         "/usr/local/nvm/versions/node/v22/bin/node",
-        "/usr/local/nvm/versions/node/v24/bin/node",
-        // Windows
         r"C:\Program Files\nodejs\node.exe",
         r"C:\Program Files (x86)\nodejs\node.exe",
     ];
-
-    // Check explicit paths first
-    for path in &candidates {
+    for path in &system_paths {
         if std::path::Path::new(path).exists() {
             return Ok(path.to_string());
         }
     }
 
-    // Check nvm user directory (e.g. ~/.nvm/versions/node/vX.Y.Z/bin/node)
-    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
-        let nvm_base = std::path::Path::new(&home).join(".nvm").join("versions").join("node");
-        if nvm_base.exists() {
-            // Find any node version, prefer highest
-            if let Ok(entries) = std::fs::read_dir(&nvm_base) {
-                let mut versions: Vec<std::path::PathBuf> = entries
-                    .flatten()
-                    .map(|e| e.path().join("bin").join("node"))
-                    .filter(|p| p.exists())
-                    .collect();
-                versions.sort();
-                if let Some(latest) = versions.last() {
-                    return Ok(latest.to_string_lossy().to_string());
+    // ── 3. nvm / volta / fnm user-local installs ────────────────────────────
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+    if let Some(home) = home {
+        let home = std::path::Path::new(&home);
+        let search_dirs = [
+            home.join(".nvm").join("versions").join("node"),
+            home.join(".volta").join("tools").join("image").join("node"),
+            home.join(".fnm").join("node-versions"),
+        ];
+        for base in &search_dirs {
+            if base.exists() {
+                if let Ok(entries) = std::fs::read_dir(base) {
+                    let mut versions: Vec<std::path::PathBuf> = entries
+                        .flatten()
+                        .map(|e| e.path().join("bin").join("node"))
+                        .filter(|p| p.exists())
+                        .collect();
+                    versions.sort();
+                    if let Some(latest) = versions.last() {
+                        return Ok(latest.to_string_lossy().to_string());
+                    }
                 }
             }
         }
+        // Volta bin symlink
+        let volta = home.join(".volta").join("bin").join("node");
+        if volta.exists() { return Ok(volta.to_string_lossy().to_string()); }
     }
 
-    // Last resort: rely on PATH (works in dev/terminal mode)
+    // ── 4. PATH fallback (works in terminal/dev mode) ────────────────────────
     if std::process::Command::new("node").arg("--version").output().is_ok() {
         return Ok("node".to_string());
     }
 
-    Err("Không tìm thấy Node.js. Vui lòng cài đặt Node.js từ https://nodejs.org (LTS version) và khởi động lại ứng dụng.".to_string())
+    Err("Không tìm thấy Node.js. Ứng dụng cần Node.js để hoạt động.\n\
+         Vui lòng cài đặt từ: https://nodejs.org/en/download (chọn LTS)\n\
+         Sau đó khởi động lại ứng dụng.".to_string())
 }
 
 // ============================================================
