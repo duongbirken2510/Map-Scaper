@@ -1,63 +1,143 @@
-# Stepwell Scraper V1.1 (Tidu Map Scraper)
+# Stepwell Scraper V1.1.1
 
-Stepwell Scraper là một hệ thống Desktop Application mạnh mẽ kết hợp giữa **Khai thác dữ liệu Google Maps (Scraping)**, **Tiếp thị Zalo (Zalo CRM)** và **Gửi thư hàng loạt (Email Outreach)**. Ứng dụng giúp tự động hóa quá trình tìm kiếm khách hàng tiềm năng B2B và thực hiện các chiến dịch tiếp cận đa kênh tự động.
+Stepwell Scraper là một Desktop Application mạnh mẽ kết hợp **Khai thác dữ liệu Google Maps**, **Tiếp thị Zalo (Zalo CRM)** và **Gửi thư hàng loạt (Email Outreach)**. Ứng dụng tự động hóa quá trình tìm kiếm khách hàng tiềm năng B2B và thực hiện chiến dịch tiếp cận đa kênh.
 
-## 🚀 Tính năng mới trong V1.1 (Cập nhật 15/05/2026)
-- **Deep Crawling (Trích xuất Sâu):** Tự động vào thẳng website của khách hàng từ Google Maps để truy quét Email liên hệ.
-- **Trạm Gửi Email Chào Hàng (Cold Email):** Hỗ trợ gửi email hàng loạt thông qua giao thức SMTP.
-- **Công nghệ Spintax:** Trộn văn bản ngẫu nhiên để lách bộ lọc Spam của Gmail/Outlook (Ví dụ: `{Chào|Xin chào} [Tên]`).
-- **Cơ chế UPSERT thông minh:** Cập nhật và làm giàu dữ liệu cũ mà không gây trùng lặp.
-- **Preview UI & Giao diện cải tiến:** Cho phép xem trước email (hỗ trợ Spintax), các bảng dữ liệu CRM được mở rộng linh hoạt chống tràn chữ.
-- **Xử lý Sidecar ổn định:** Nâng cấp thuật toán cấp phát đường dẫn nội bộ (Path Resolution) giúp module Zalo Node.js chống crash khi build hoặc run dev trên môi trường Windows.
+---
+
+## 🆕 Changelog
+
+### V1.1.1 — Bản vá ổn định (17/05/2026)
+
+#### 🔐 Bảo mật
+- **Fix SQL Injection:** Toàn bộ câu lệnh lọc trong `get_crm_leads` chuyển sang Parameterized Queries (`params![]`)
+- **Bật CSP (Content Security Policy):** Thay thế `null` bằng chính sách bảo mật cụ thể trong `tauri.conf.json`
+- **XSS Sanitization:** Lọc HTML độc hại trong phần xem trước email
+
+#### ⚡ Hiệu năng
+- **Fix N+1 Query:** `get_crm_stats()` gộp từ 8 queries thành 1 câu `GROUP BY`
+- **Thêm DB Index:** Cột `status`, `region`, `friend_sent_at` được đánh index tăng tốc lọc dữ liệu lớn
+
+#### 🐛 Sửa lỗi nghiêm trọng
+- **Chrome SingletonLock:** Mỗi phiên cào giờ dùng profile Chrome riêng biệt (unique `--user-data-dir`), không còn crash khi chạy liên tiếp
+- **Zalo QR Đơ App:** Chuyển QR login sang background thread (fire-and-forget), UI không bị block trong khi chờ quét QR
+- **Node.js không tìm thấy:** Bundle Node.js v20 LTS vào trong app → hoạt động trên mọi máy Mac không cần cài Node.js
+- **`zca-js` không tìm thấy:** Dùng `esbuild` đóng gói toàn bộ sidecar thành `bundle.cjs` tự chứa → không phụ thuộc `node_modules`
+- **Zalo Sidecar path sai:** Fix đường dẫn tìm sidecar trong macOS `.app` bundle (`Contents/Resources/` thay vì `Contents/MacOS/`)
+- **Email dùng sai delay:** Email Outreach giờ dùng `email_delay_min/max` thay vì dùng chung với cài đặt của Zalo
+
+#### 🎨 Giao diện & UX
+- **Fix Stale Closure:** `loadStats` trong `App.tsx` bọc bằng `useCallback`, stats luôn cập nhật sau khi cào xong
+- **Log Outreach:** Không còn reset log khi chạy action mới — log được nối tiếp có tiêu đề phân cách
+- **Interface CRM đồng bộ:** Thêm `last_reply_at`, `converted_at`, `rejected` vào TypeScript interface khớp với Rust struct
+
+#### ⚙️ Cài đặt
+- Thêm `email_delay_min` / `email_delay_max` mặc định (30s–60s) trong Settings
+
+---
+
+### V1.1.0 — Deep Crawl & Email (15/05/2026)
+- **Deep Crawling:** Tự động vào website khách hàng để truy quét Email liên hệ
+- **Email Outreach (Cold Email):** Gửi email hàng loạt qua SMTP
+- **Spintax Engine:** Trộn nội dung ngẫu nhiên tránh bộ lọc spam (`{Chào|Xin chào} [Tên]`)
+- **Cơ chế UPSERT:** Cập nhật dữ liệu cũ mà không gây trùng lặp
+- **Preview Email:** Xem trước nội dung email trước khi gửi
+
+---
 
 ## 🌟 Tính năng chính
 
-1. **Google Maps Scraper:**
-   - Tìm kiếm và trích xuất dữ liệu địa điểm (Tên, SĐT, Địa chỉ, Khu vực, Website, Email) tự động.
-   - Hỗ trợ lưu trữ trực tiếp vào CSDL SQLite (`scraper_v2.db`).
-   - Xuất dữ liệu đa dạng theo từng khu vực hoặc toàn bộ danh sách ra định dạng Excel (`.xlsx`).
+### 1. Google Maps Scraper
+- Tìm kiếm và trích xuất: Tên, SĐT, Địa chỉ, Khu vực, Website, Email
+- Lưu trực tiếp vào SQLite — lọc trùng toàn DB tự động
+- Xuất Excel (`.xlsx`) theo khu vực hoặc toàn bộ
+- **Tự dừng thông minh:** Dừng khi đủ số lượng, hết kết quả Maps, hoặc scroll tối đa 20 vòng
 
-2. **Zalo CRM & Automation:**
-   - **Đăng nhập Zalo linh hoạt:** Hỗ trợ đăng nhập qua quét mã QR (trực tiếp trên app) hoặc nhập Cookie thủ công (Dành cho tài khoản muốn giữ nguyên phiên làm việc trên trình duyệt).
-   - **Bền vững:** Giữ phiên đăng nhập để các lần mở ứng dụng sau không cần phải thao tác lại.
-   - **Chiến dịch tự động (Outreach):** Gửi lời mời kết bạn và nhắn tin hàng loạt tự động với thời gian chờ (delay) ngẫu nhiên để tránh bị khóa tài khoản.
-   - **Phễu CRM:** Theo dõi trạng thái khách hàng (Mới -> Đã gửi kết bạn -> Đã nhắn tin -> Khách hàng).
+### 2. Zalo CRM & Automation
+- Đăng nhập qua **QR Code** (không block UI) hoặc **Cookie thủ công**
+- Gửi lời mời kết bạn & nhắn tin hàng loạt với delay ngẫu nhiên
+- Phễu CRM: `Mới → Đã gửi kết bạn → Đã nhắn tin → Khách hàng`
+- Lưu phiên đăng nhập — không cần login lại
+
+### 3. Email Outreach
+- Gửi email SMTP với Spintax và placeholder (`[Tên]`, `[Website]`)
+- Cấu hình delay riêng cho email (tách biệt với Zalo)
+
+---
 
 ## 🛠 Kiến trúc công nghệ
 
-- **Frontend:** React, TypeScript, TailwindCSS 4, Vite.
-- **Backend:** 
-  - **Tauri (Rust):** Quản lý giao diện Desktop, Hệ thống File, Database (SQLite), HTTP Client scraping.
-  - **Node.js Sidecar (`zca-js`):** Process chạy ngầm giao tiếp độc lập với Tauri qua stdin/stdout để thao tác với API không chính thức của Zalo một cách nhẹ nhàng và ổn định (thay thế hoàn toàn việc phải giả lập trình duyệt nặng nề).
+| Layer | Công nghệ |
+|---|---|
+| **Frontend** | React 19, TypeScript, TailwindCSS 4, Vite |
+| **Backend Desktop** | Tauri 2 (Rust) — SQLite, file system, HTTP |
+| **Zalo Engine** | Node.js Sidecar (`zca-js`) — giao tiếp qua stdin/stdout |
+| **Database** | SQLite (bundled trong binary, không cần DLL) |
 
-## 💻 Hướng dẫn Cài đặt & Phát triển
+---
 
-### Yêu cầu môi trường:
-- [Node.js](https://nodejs.org/en/) (khuyên dùng v18+)
-- [Rust](https://www.rust-lang.org/tools/install) (cargo)
+## 💻 Cài đặt & Phát triển
+
+### Yêu cầu (Dev machine)
+- [Node.js](https://nodejs.org/en/) v18+
+- [Rust](https://www.rust-lang.org/tools/install) (stable)
+- Google Chrome (cho scraper)
+
+> **Máy người dùng cuối:** Không cần cài Node.js — đã bundle sẵn trong app.
 
 ### 1. Cài đặt Dependencies
-Mở terminal tại thư mục gốc của dự án:
 ```bash
 npm install
-cd src-tauri/zalo-sidecar
-npm install
-cd ../..
+cd src-tauri/zalo-sidecar && npm install && cd ../..
 ```
 
-### 2. Chạy môi trường phát triển (Dev)
+### 2. Chạy Dev Mode
 ```bash
 npm run tauri dev
 ```
 
-### 3. Build Desktop App (Sản phẩm cuối)
-Để đóng gói thành file `.exe` (NSIS Installer) cho Windows:
+### 3. Build Production
+
+**macOS (Apple Silicon):**
 ```bash
-npm run tauri build -- --bundles nsis
+npm run tauri build
+# Output: src-tauri/target/release/bundle/dmg/Stepwell Scraper_1.1.1_aarch64.dmg
 ```
-File cài đặt sẽ nằm ở: `src-tauri/target/release/bundle/nsis/`
+
+**Linux (qua GitLab CI/CD):**  
+Push code → GitLab pipeline tự build `.deb` + `.AppImage`
+
+### 4. Cài đặt trên macOS (máy khác)
+```bash
+# Sau khi cài từ DMG, chạy lệnh bypass Gatekeeper:
+xattr -cr "/Applications/Stepwell Scraper.app"
+```
+
+---
+
+## 📁 Cấu trúc dự án
+
+```
+Map-Scaper-clone/
+├── src/                        # React Frontend
+│   ├── App.tsx                 # Layout chính, scraper controls
+│   └── ZaloTab.tsx             # Zalo CRM, Email Outreach, Settings
+├── src-tauri/
+│   ├── src/
+│   │   ├── lib.rs              # Tauri commands
+│   │   ├── scraper.rs          # Google Maps crawler
+│   │   ├── database.rs         # SQLite operations
+│   │   ├── zalo.rs             # Zalo sidecar bridge
+│   │   └── mailer.rs           # Email SMTP
+│   ├── zalo-sidecar/
+│   │   ├── index.mjs           # Node.js sidecar source
+│   │   └── bundle.cjs          # Esbuild bundle (production)
+│   ├── binaries/
+│   │   └── node-aarch64-apple-darwin  # Bundled Node.js v20 LTS
+│   └── tauri.conf.json
+└── README.md
+```
 
 ---
 
 ## 📖 Tài liệu liên quan
-- Chi tiết hướng dẫn thao tác ứng dụng dành cho người dùng: Tham khảo file [HUONG_DAN_SU_DUNG.md](./HUONG_DAN_SU_DUNG.md)
+- Hướng dẫn sử dụng chi tiết: [HUONG_DAN_SU_DUNG.md](./HUONG_DAN_SU_DUNG.md)
