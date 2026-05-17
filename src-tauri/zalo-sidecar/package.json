@@ -5,5 +5,8 @@
   "type": "module",
   "dependencies": {
     "zca-js": "latest"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
   }
 }

@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build && cd src-tauri/zalo-sidecar && npm install --omit=dev",
+    "beforeBuildCommand": "npm run build && cd src-tauri/zalo-sidecar && npm install && npx esbuild index.mjs --bundle --platform=node --format=cjs --banner:js=\"Object.defineProperty(globalThis,'__importMetaUrl',{get:()=>'file://'+__filename});\" --define:import.meta.url=globalThis.__importMetaUrl --outfile=bundle.cjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -34,7 +34,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "zalo-sidecar/**/*": "zalo-sidecar"
+      "zalo-sidecar/bundle.cjs": "zalo-sidecar/bundle.cjs",
+      "zalo-sidecar/package.json": "zalo-sidecar/package.json"
     }
   }
 }

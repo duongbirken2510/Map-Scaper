@@ -59,21 +59,27 @@ pub struct ZaloSidecar {
 impl ZaloSidecar {
     pub fn start(session_dir: &Path) -> Result<Self, String> {
         let sidecar_dir = find_sidecar_dir()?;
-        let index_path = sidecar_dir.join("index.mjs");
 
-        if !index_path.exists() {
+        // Use pre-bundled file if available (production), otherwise fall back to index.mjs (dev)
+        let bundle_path = sidecar_dir.join("bundle.cjs");
+        let index_path  = sidecar_dir.join("index.mjs");
+        let script_path = if bundle_path.exists() {
+            bundle_path
+        } else if index_path.exists() {
+            index_path
+        } else {
             return Err(format!(
                 "Không tìm thấy zalo-sidecar tại: {}",
-                index_path.display()
+                sidecar_dir.display()
             ));
-        }
+        };
 
         // FIX: macOS .app bundles don't inherit shell PATH, so 'node' command fails.
         // We must resolve the full path to node binary explicitly.
         let node_bin = find_node_binary()?;
 
         let mut cmd = Command::new(&node_bin);
-        cmd.arg(&index_path)
+        cmd.arg(&script_path)
             .arg(session_dir.to_string_lossy().to_string())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -163,16 +169,15 @@ impl Drop for ZaloSidecar {
 }
 
 fn find_sidecar_dir() -> Result<PathBuf, String> {
+    // Check if a directory contains a valid sidecar (bundle.cjs takes priority over index.mjs)
+    let is_valid_sidecar = |p: &PathBuf| p.join("bundle.cjs").exists() || p.join("index.mjs").exists();
+
     // ── Dev mode: check source tree paths first ─────────────────
     if let Ok(cwd) = std::env::current_dir() {
         let root_dev = cwd.join("src-tauri").join("zalo-sidecar");
-        if root_dev.join("index.mjs").exists() {
-            return Ok(root_dev);
-        }
+        if is_valid_sidecar(&root_dev) { return Ok(root_dev); }
         let tauri_dev = cwd.join("zalo-sidecar");
-        if tauri_dev.join("index.mjs").exists() {
-            return Ok(tauri_dev);
-        }
+        if is_valid_sidecar(&tauri_dev) { return Ok(tauri_dev); }
     }
 
     if let Ok(exe) = std::env::current_exe() {
@@ -182,31 +187,23 @@ fn find_sidecar_dir() -> Result<PathBuf, String> {
         let dev_candidate = exe_dir.ancestors().find_map(|p| {
             if p.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
                 let c = p.join("zalo-sidecar");
-                if c.join("index.mjs").exists() {
-                    return Some(c);
-                }
+                if is_valid_sidecar(&c) { return Some(c); }
             }
             None
         });
-        if let Some(c) = dev_candidate {
-            return Ok(c);
-        }
+        if let Some(c) = dev_candidate { return Ok(c); }
 
         // ── Production macOS .app bundle ─────────────────────────
         // Executable: Contents/MacOS/map-scraper
         // Resources:  Contents/Resources/zalo-sidecar/   ← correct path
         if let Some(contents_dir) = exe_dir.parent() {
             let macos_resources = contents_dir.join("Resources").join("zalo-sidecar");
-            if macos_resources.join("index.mjs").exists() {
-                return Ok(macos_resources);
-            }
+            if is_valid_sidecar(&macos_resources) { return Ok(macos_resources); }
         }
 
         // ── Production Linux/Windows: next to executable ─────────
         let candidate = exe_dir.join("zalo-sidecar");
-        if candidate.join("index.mjs").exists() {
-            return Ok(candidate);
-        }
+        if is_valid_sidecar(&candidate) { return Ok(candidate); }
     }
 
     Err("Không tìm thấy thư mục zalo-sidecar. Hãy đảm bảo ứng dụng được cài đặt đúng cách.".to_string())
