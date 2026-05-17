@@ -159,7 +159,7 @@ impl Drop for ZaloSidecar {
 }
 
 fn find_sidecar_dir() -> Result<PathBuf, String> {
-    // 1. Dev mode: check absolute source path first (where node_modules definitely exists)
+    // ── Dev mode: check source tree paths first ─────────────────
     if let Ok(cwd) = std::env::current_dir() {
         let root_dev = cwd.join("src-tauri").join("zalo-sidecar");
         if root_dev.join("index.mjs").exists() {
@@ -172,10 +172,10 @@ fn find_sidecar_dir() -> Result<PathBuf, String> {
     }
 
     if let Ok(exe) = std::env::current_exe() {
-        let dir = exe.parent().unwrap_or(Path::new("."));
-        
-        // 2. Look up the tree for src-tauri (works when running from target/debug)
-        let dev_candidate = dir.ancestors().find_map(|p| {
+        let exe_dir = exe.parent().unwrap_or(Path::new("."));
+
+        // ── Dev mode: walk up ancestors to find src-tauri ───────
+        let dev_candidate = exe_dir.ancestors().find_map(|p| {
             if p.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
                 let c = p.join("zalo-sidecar");
                 if c.join("index.mjs").exists() {
@@ -188,14 +188,24 @@ fn find_sidecar_dir() -> Result<PathBuf, String> {
             return Ok(c);
         }
 
-        // 3. Production / fallback: check relative to executable
-        let candidate = dir.join("zalo-sidecar");
+        // ── Production macOS .app bundle ─────────────────────────
+        // Executable: Contents/MacOS/map-scraper
+        // Resources:  Contents/Resources/zalo-sidecar/   ← correct path
+        if let Some(contents_dir) = exe_dir.parent() {
+            let macos_resources = contents_dir.join("Resources").join("zalo-sidecar");
+            if macos_resources.join("index.mjs").exists() {
+                return Ok(macos_resources);
+            }
+        }
+
+        // ── Production Linux/Windows: next to executable ─────────
+        let candidate = exe_dir.join("zalo-sidecar");
         if candidate.join("index.mjs").exists() {
             return Ok(candidate);
         }
     }
 
-    Err("Không tìm thấy thư mục zalo-sidecar".to_string())
+    Err("Không tìm thấy thư mục zalo-sidecar. Hãy đảm bảo ứng dụng được cài đặt đúng cách.".to_string())
 }
 
 // ============================================================
