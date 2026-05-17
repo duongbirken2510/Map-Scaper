@@ -92,8 +92,9 @@ pub async fn email_start_outreach(
         return Err("Vui lòng cấu hình SMTP trước khi gửi.".to_string());
     }
 
-    let delay_min: u64 = db.get_setting("zalo_delay_min").parse().unwrap_or(30);
-    let delay_max: u64 = db.get_setting("zalo_delay_max").parse().unwrap_or(60);
+    // FIX: Use email-specific delay settings, not Zalo's delay settings
+    let delay_min: u64 = db.get_setting("email_delay_min").parse().unwrap_or(30);
+    let delay_max: u64 = db.get_setting("email_delay_max").parse().unwrap_or(60);
 
     tokio::spawn(async move {
         let total = lead_ids.len();

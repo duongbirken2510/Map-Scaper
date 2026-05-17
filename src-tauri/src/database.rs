@@ -127,9 +127,13 @@ impl Database {
             "ALTER TABLE leads ADD COLUMN converted_at TEXT",
             "ALTER TABLE leads ADD COLUMN website TEXT DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN email TEXT DEFAULT ''",
+            // Performance indexes — safe to re-run (IF NOT EXISTS)
+            "CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)",
+            "CREATE INDEX IF NOT EXISTS idx_leads_region ON leads(region)",
+            "CREATE INDEX IF NOT EXISTS idx_leads_friend_sent ON leads(friend_sent_at)",
         ];
         for sql in &migrations {
-            let _ = self.conn.execute(sql, []); // ignore "duplicate column" errors
+            let _ = self.conn.execute(sql, []); // ignore "duplicate column" / "already exists" errors
         }
 
         // Insert default settings if not exist
@@ -148,6 +152,9 @@ impl Database {
             ("zalo_delay_min", "60"),
             ("zalo_delay_max", "120"),
             ("zalo_daily_limit", "20"),
+            // Email outreach has its own separate delay settings
+            ("email_delay_min", "30"),
+            ("email_delay_max", "60"),
             ("email_subject", "{Hợp tác|Thư ngỏ|Gửi thư từ xưởng giày Tigish} - Gửi quản lý cửa hàng [Tên]"),
             ("email_body", default_email_body),
         ];
@@ -414,46 +421,54 @@ impl Database {
 
     /// Get all leads with CRM status info.
     pub fn get_crm_leads(&self, status_filter: Option<&str>) -> SqlResult<Vec<CrmLead>> {
-        let sql = if let Some(s) = status_filter {
-            format!(
-                "SELECT id, name, phone, address, region, keyword, website, email, status, zalo_found,
-                        friend_sent_at, friend_accepted_at, first_msg_sent_at, last_reply_at,
-                        note, scraped_at, converted_at
-                 FROM leads WHERE status = '{}' ORDER BY id DESC", s
-            )
-        } else {
-            "SELECT id, name, phone, address, region, keyword, website, email, status, zalo_found,
-                    friend_sent_at, friend_accepted_at, first_msg_sent_at, last_reply_at,
-                    note, scraped_at, converted_at
-             FROM leads ORDER BY id DESC".to_string()
+        // FIX: Use parameterized queries to prevent SQL injection.
+        // Never use format!() to interpolate user-supplied values into SQL strings.
+        let base_sql = "SELECT id, name, phone, address, region, keyword, website, email, status, zalo_found,
+                               friend_sent_at, friend_accepted_at, first_msg_sent_at, last_reply_at,
+                               note, scraped_at, converted_at
+                        FROM leads";
+
+        let map_row = |row: &rusqlite::Row| -> rusqlite::Result<CrmLead> {
+            Ok(CrmLead {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                phone: row.get(2)?,
+                address: row.get(3)?,
+                region: row.get(4)?,
+                keyword: row.get(5)?,
+                website: row.get(6).unwrap_or_default(),
+                email: row.get(7).unwrap_or_default(),
+                status: row.get(8)?,
+                zalo_found: row.get::<_, i64>(9).unwrap_or(0) == 1,
+                friend_sent_at: row.get(10)?,
+                friend_accepted_at: row.get(11)?,
+                first_msg_sent_at: row.get(12)?,
+                last_reply_at: row.get(13)?,
+                note: row.get(14)?,
+                scraped_at: row.get(15)?,
+                converted_at: row.get(16)?,
+            })
         };
 
-        let mut stmt = self.conn.prepare(&sql)?;
-        let leads = stmt
-            .query_map([], |row| {
-                Ok(CrmLead {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    phone: row.get(2)?,
-                    address: row.get(3)?,
-                    region: row.get(4)?,
-                    keyword: row.get(5)?,
-                    website: row.get(6).unwrap_or_default(),
-                    email: row.get(7).unwrap_or_default(),
-                    status: row.get(8)?,
-                    zalo_found: row.get::<_, i64>(9).unwrap_or(0) == 1,
-                    friend_sent_at: row.get(10)?,
-                    friend_accepted_at: row.get(11)?,
-                    first_msg_sent_at: row.get(12)?,
-                    last_reply_at: row.get(13)?,
-                    note: row.get(14)?,
-                    scraped_at: row.get(15)?,
-                    converted_at: row.get(16)?,
-                })
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
-        Ok(leads)
+        if let Some(s) = status_filter {
+            let mut stmt = self.conn.prepare(
+                &format!("{} WHERE status = ?1 ORDER BY id DESC", base_sql)
+            )?;
+            let leads = stmt
+                .query_map(params![s], map_row)?
+                .filter_map(|r| r.ok())
+                .collect();
+            Ok(leads)
+        } else {
+            let mut stmt = self.conn.prepare(
+                &format!("{} ORDER BY id DESC", base_sql)
+            )?;
+            let leads = stmt
+                .query_map([], map_row)?
+                .filter_map(|r| r.ok())
+                .collect();
+            Ok(leads)
+        }
     }
 
     /// Count how many friend requests sent today (for rate limiting).
@@ -468,25 +483,29 @@ impl Database {
     }
 
     /// Get CRM funnel stats.
+    /// FIX: Single GROUP BY query instead of 7 separate COUNT(*) queries (N+1 antipattern).
     pub fn get_crm_stats(&self) -> SqlResult<CrmStats> {
-        let count = |status: &str| -> i64 {
-            self.conn
-                .query_row(
-                    "SELECT COUNT(*) FROM leads WHERE status = ?1",
-                    params![status],
-                    |r| r.get(0),
-                )
-                .unwrap_or(0)
-        };
+        let mut counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+
+        let mut stmt = self.conn.prepare(
+            "SELECT status, COUNT(*) as cnt FROM leads GROUP BY status"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        for row in rows.flatten() {
+            counts.insert(row.0, row.1);
+        }
+
         Ok(CrmStats {
-            new: count("NEW"),
-            sent_friend: count("SENT_FRIEND"),
-            sent_msg: count("SENT_MSG"),
-            friend_accepted: count("FRIEND_ACCEPTED"),
-            replied: count("REPLIED"),
-            customer: count("CUSTOMER"),
-            rejected: count("REJECTED"),
-            today_sent: self.count_today_sent(),
+            new:             *counts.get("NEW").unwrap_or(&0),
+            sent_friend:     *counts.get("SENT_FRIEND").unwrap_or(&0),
+            sent_msg:        *counts.get("SENT_MSG").unwrap_or(&0),
+            friend_accepted: *counts.get("FRIEND_ACCEPTED").unwrap_or(&0),
+            replied:         *counts.get("REPLIED").unwrap_or(&0),
+            customer:        *counts.get("CUSTOMER").unwrap_or(&0),
+            rejected:        *counts.get("REJECTED").unwrap_or(&0),
+            today_sent:      self.count_today_sent(),
         })
     }
 

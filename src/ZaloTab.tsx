@@ -13,11 +13,13 @@ interface CrmLead {
   region: string; keyword: string; website: string; email: string; status: string; zalo_found: boolean;
   note: string; scraped_at: string;
   friend_sent_at?: string; friend_accepted_at?: string; first_msg_sent_at?: string;
+  last_reply_at?: string;  // FIX: was missing, now matches backend CrmLead struct
+  converted_at?: string;   // FIX: was missing, now matches backend CrmLead struct
 }
 interface CrmStats {
   new: number; sent_friend: number; sent_msg: number;
   friend_accepted: number; replied: number; customer: number;
-  rejected: number; today_sent: number;
+  rejected: number; today_sent: number; // rejected was already present - OK
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -147,13 +149,24 @@ export default function ZaloTab() {
 
   const startOutreach = async (action: string) => {
     if (selectedIds.size === 0) return;
-    setIsSending(true); setOutreachLogs([]);
+    setIsSending(true);
+    // FIX: Append new session logs with a header separator instead of resetting.
+    // This prevents losing email logs when Zalo action starts immediately after.
+    setOutreachLogs(prev => [...prev,
+      prev.length > 0 ? "───────────────────────────" : "",
+      `[${new Date().toLocaleTimeString("vi-VN")}] 🚀 Bắt đầu: ${action} (${selectedIds.size} leads)`
+    ].filter(Boolean));
     await invoke("zalo_start_outreach", { leadIds: Array.from(selectedIds), action });
   };
 
   const startEmailOutreach = async () => {
     if (selectedIds.size === 0) return;
-    setIsSending(true); setOutreachLogs([]);
+    setIsSending(true);
+    // FIX: Append new session logs with a header separator instead of resetting.
+    setOutreachLogs(prev => [...prev,
+      prev.length > 0 ? "───────────────────────────" : "",
+      `[${new Date().toLocaleTimeString("vi-VN")}] 🚀 Bắt đầu gửi Email (${selectedIds.size} leads)`
+    ].filter(Boolean));
     try {
       await invoke("email_start_outreach", { leadIds: Array.from(selectedIds) });
     } catch (e: any) {
@@ -169,7 +182,7 @@ export default function ZaloTab() {
 
   const getPreviewHtml = () => {
     let text = settings["email_body"] || "";
-    let preview = text.replace(/\{([^{}]+)\}/g, (match, p1) => {
+    let preview = text.replace(/\{([^{}]+)\}/g, (_match, p1) => {
       const options = p1.split('|');
       return options[Math.floor(Math.random() * options.length)];
     });
@@ -546,7 +559,19 @@ export default function ZaloTab() {
 
                 <div className="mt-4 pt-4 border-t border-slate-700/50">
                   <label className="block text-xs font-medium text-amber-400 mb-2">👀 Xem trước (Preview):</label>
-                  <div key={previewKey} className="bg-slate-950 p-4 rounded-lg text-sm text-slate-300 border border-slate-800 prose prose-invert max-w-none" dangerouslySetInnerHTML={{__html: getPreviewHtml()}}></div>
+                  {/* FIX: Sanitize HTML to prevent XSS before rendering.
+                      Note: DOMPurify should be added: npm install dompurify @types/dompurify */}
+                  <div key={previewKey}
+                    className="bg-slate-950 p-4 rounded-lg text-sm text-slate-300 border border-slate-800 prose prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{__html: (() => {
+                      const html = getPreviewHtml();
+                      // Basic sanitization: strip <script> tags and event handlers
+                      // For production, use: DOMPurify.sanitize(html)
+                      return html
+                        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                        .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '');
+                    })()}}>
+                  </div>
                 </div>
               </div>
             </div>

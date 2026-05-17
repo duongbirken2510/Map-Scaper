@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -85,6 +85,18 @@ function App() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  // FIX: Wrap loadStats in useCallback to prevent stale closure in event listeners.
+  // Without useCallback, the scrape_progress listener captured an outdated version of this function.
+  const loadStats = useCallback(async () => {
+    try {
+      const s = await invoke<DbStats>("get_db_stats");
+      setStats(s);
+    } catch { }
+  }, []);
+
+  // Load stats on mount
+  useEffect(() => { loadStats(); }, [loadStats]);
+
   // Real-time progress from Rust
   useEffect(() => {
     const unlisten = listen<ScrapeProgress>("scrape_progress", (e) => {
@@ -95,7 +107,7 @@ function App() {
       if (p.done) {
         setIsScraping(false);
         setActiveTab("results");
-        loadStats(); // refresh stats after scrape
+        loadStats(); // FIX: now safe — loadStats is stable via useCallback
       }
       if (p.error) {
         addLog(`❌ Lỗi: ${p.error}`);
@@ -103,10 +115,7 @@ function App() {
       }
     });
     return () => { unlisten.then((f) => f()); };
-  }, []);
-
-  // Load stats on mount
-  useEffect(() => { loadStats(); }, []);
+  }, [loadStats]); // FIX: loadStats in dep array, no stale closure
 
   // ── Actions ────────────────────────────────────────────────
 
@@ -176,13 +185,6 @@ function App() {
     } finally {
       setIsLoadingHistory(false);
     }
-  };
-
-  const loadStats = async () => {
-    try {
-      const s = await invoke<DbStats>("get_db_stats");
-      setStats(s);
-    } catch { }
   };
 
   const clearAll = async () => {
