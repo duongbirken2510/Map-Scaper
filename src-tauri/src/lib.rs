@@ -1,9 +1,11 @@
 mod database;
+mod fb_scraper;
 mod mailer;
 mod scraper;
 mod zalo;
 
 use database::{CrmLead, CrmStats, Database, DbLead, DbStats};
+use fb_scraper::{FbLoginStatus, FbScrapeConfig};
 use scraper::{Lead, ScrapeConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -236,6 +238,60 @@ async fn test_email(
     .map_err(|e| format!("Task failed: {}", e))?
 }
 
+// ============================================================
+// Facebook Commands
+// ============================================================
+
+/// Check if user is logged into Facebook (using persistent Chrome profile)
+#[tauri::command]
+async fn fb_check_login() -> Result<FbLoginStatus, String> {
+    fb_scraper::check_fb_login().await
+}
+
+/// Show headed Chrome browser for user to log into Facebook manually.
+/// Fire-and-forget: spawns background task, emits 'fb_login_result' event when done.
+#[tauri::command]
+fn fb_show_login(app: AppHandle) -> Result<String, String> {
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            match fb_scraper::show_fb_login_browser(&app_clone).await {
+                Ok(_) => {}
+                Err(e) => {
+                    let _ = app_clone.emit("fb_login_result", FbLoginStatus {
+                        logged_in: false,
+                        name: format!("Lỗi: {}", e),
+                    });
+                }
+            }
+        });
+    });
+    Ok("Đang mở trình duyệt Facebook...".to_string())
+}
+
+/// Start scraping Facebook Pages (headless, using persistent session)
+#[tauri::command]
+async fn fb_start_scraping(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    keyword: String,
+    location: String,
+    limit: usize,
+    deduplicate: bool,
+) -> Result<usize, String> {
+    let db_path = state.db_path.lock().map_err(|e| e.to_string())?.clone();
+
+    let config = FbScrapeConfig {
+        keyword,
+        location,
+        limit,
+        deduplicate,
+    };
+
+    fb_scraper::start_fb_scraping(app, config, db_path).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -287,6 +343,10 @@ pub fn run() {
             // Email
             test_email,
             mailer::email_start_outreach,
+            // Facebook
+            fb_check_login,
+            fb_show_login,
+            fb_start_scraping,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

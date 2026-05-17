@@ -46,6 +46,19 @@ interface ScrapeProgress {
   error?: string;
 }
 
+interface FbLoginStatus {
+  logged_in: boolean;
+  name: string;
+}
+
+interface FbScrapeProgress {
+  message: string;
+  found: number;
+  skipped: number;
+  done: boolean;
+  error?: string;
+}
+
 type Tab = "logs" | "results" | "history" | "zalo";
 
 // ============================================================
@@ -58,6 +71,7 @@ function App() {
   const [limit, setLimit] = useState(50);
   const [deduplicate, setDeduplicate] = useState(true);
   const [deepCrawl, setDeepCrawl] = useState(false);
+  const [source, setSource] = useState<"maps" | "facebook">("maps");
 
   // Scrape state
   const [isScraping, setIsScraping] = useState(false);
@@ -65,6 +79,11 @@ function App() {
   const [results, setResults] = useState<Lead[]>([]);
   const [found, setFound] = useState(0);
   const [skipped, setSkipped] = useState(0);
+
+  // Facebook login state
+  const [fbStatus, setFbStatus] = useState<FbLoginStatus | null>(null);
+  const [fbChecking, setFbChecking] = useState(false);
+  const [fbLoggingIn, setFbLoggingIn] = useState(false);
 
   // DB / History state
   const [activeTab, setActiveTab] = useState<Tab>("logs");
@@ -117,6 +136,34 @@ function App() {
     return () => { unlisten.then((f) => f()); };
   }, [loadStats]); // FIX: loadStats in dep array, no stale closure
 
+  // Facebook progress listener
+  useEffect(() => {
+    const u1 = listen<FbScrapeProgress>("fb_scrape_progress", (e) => {
+      const p = e.payload;
+      addLog(p.message);
+      setFound(p.found);
+      setSkipped(p.skipped);
+      if (p.done) {
+        setIsScraping(false);
+        loadStats();
+      }
+      if (p.error) {
+        addLog(`❌ ${p.error}`);
+        setIsScraping(false);
+      }
+    });
+    const u2 = listen<FbLoginStatus>("fb_login_result", (e) => {
+      setFbStatus(e.payload);
+      setFbLoggingIn(false);
+      if (e.payload.logged_in) {
+        addLog(`✅ Đăng nhập Facebook thành công: ${e.payload.name}`);
+      } else {
+        addLog(`⚠️ Đăng nhập Facebook: ${e.payload.name}`);
+      }
+    });
+    return () => { u1.then(f => f()); u2.then(f => f()); };
+  }, [loadStats]);
+
   // ── Actions ────────────────────────────────────────────────
 
   const startScraping = async () => {
@@ -124,22 +171,72 @@ function App() {
       addLog("⚠️ Vui lòng nhập đầy đủ Từ khóa và Khu vực.");
       return;
     }
+
+    if (source === "facebook" && (!fbStatus || !fbStatus.logged_in)) {
+      addLog("⚠️ Vui lòng đăng nhập Facebook trước khi cào.");
+      return;
+    }
+
     setIsScraping(true);
     setResults([]);
     setFound(0);
     setSkipped(0);
     setLogs([]);
     setActiveTab("logs");
-    try {
-      const leads = await invoke<Lead[]>("start_scraping", {
-        config: { keyword, region, limit, deduplicate, deep_crawl: deepCrawl },
-      });
-      setResults(leads);
-    } catch (err: any) {
-      addLog(`❌ Lỗi hệ thống: ${err}`);
-      setIsScraping(false);
+
+    if (source === "facebook") {
+      // Facebook scraping
+      try {
+        await invoke("fb_start_scraping", {
+          keyword, location: region, limit, deduplicate,
+        });
+      } catch (err: any) {
+        addLog(`❌ Lỗi hệ thống: ${err}`);
+        setIsScraping(false);
+      }
+    } else {
+      // Google Maps scraping
+      try {
+        const leads = await invoke<Lead[]>("start_scraping", {
+          config: { keyword, region, limit, deduplicate, deep_crawl: deepCrawl },
+        });
+        setResults(leads);
+      } catch (err: any) {
+        addLog(`❌ Lỗi hệ thống: ${err}`);
+        setIsScraping(false);
+      }
     }
   };
+
+  const checkFbLogin = async () => {
+    setFbChecking(true);
+    try {
+      const status = await invoke<FbLoginStatus>("fb_check_login");
+      setFbStatus(status);
+    } catch (e: any) {
+      addLog(`⚠️ Lỗi kiểm tra Facebook: ${e}`);
+    } finally {
+      setFbChecking(false);
+    }
+  };
+
+  const startFbLogin = async () => {
+    setFbLoggingIn(true);
+    try {
+      await invoke("fb_show_login");
+      // Result comes via fb_login_result event
+    } catch (e: any) {
+      addLog(`❌ Lỗi mở trình duyệt: ${e}`);
+      setFbLoggingIn(false);
+    }
+  };
+
+  // Auto-check FB login when switching to Facebook source
+  useEffect(() => {
+    if (source === "facebook" && !fbStatus && !fbChecking) {
+      checkFbLogin();
+    }
+  }, [source]);
 
   const exportSessionExcel = async () => {
     if (results.length === 0) return;
@@ -239,6 +336,75 @@ function App() {
           <div>
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Cấu hình cào</h2>
             <div className="space-y-3">
+              {/* Source selector */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">📡 Nguồn dữ liệu</label>
+                <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
+                  <button
+                    onClick={() => !isScraping && setSource("maps")}
+                    disabled={isScraping}
+                    className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      source === "maps"
+                        ? "bg-blue-600 text-white shadow"
+                        : "text-slate-400 hover:text-slate-200"
+                    } disabled:cursor-not-allowed`}
+                  >📍 Google Maps</button>
+                  <button
+                    onClick={() => !isScraping && setSource("facebook")}
+                    disabled={isScraping}
+                    className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      source === "facebook"
+                        ? "bg-blue-600 text-white shadow"
+                        : "text-slate-400 hover:text-slate-200"
+                    } disabled:cursor-not-allowed`}
+                  >📘 Facebook</button>
+                </div>
+              </div>
+
+              {/* Facebook login panel */}
+              {source === "facebook" && (
+                <div className={`rounded-lg p-3 border ${
+                  fbStatus?.logged_in
+                    ? "bg-emerald-900/30 border-emerald-700/50"
+                    : "bg-amber-900/20 border-amber-700/40"
+                }`}>
+                  {fbChecking ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-300">
+                      <span className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                      Đang kiểm tra đăng nhập...
+                    </div>
+                  ) : fbStatus?.logged_in ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-emerald-300">
+                        <span>✅</span>
+                        <span>Đã kết nối: <strong>{fbStatus.name}</strong></span>
+                      </div>
+                      <button onClick={startFbLogin} disabled={fbLoggingIn || isScraping}
+                        className="text-[10px] text-slate-400 hover:text-slate-200 underline">
+                        🔄 Đăng nhập lại
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-amber-300">📘 Chưa đăng nhập Facebook</p>
+                      <button onClick={startFbLogin} disabled={fbLoggingIn || isScraping}
+                        className={`w-full py-2 rounded-lg text-xs font-semibold transition-all ${
+                          fbLoggingIn
+                            ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-500 text-white"
+                        }`}>
+                        {fbLoggingIn ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                            Đang mở trình duyệt...
+                          </span>
+                        ) : "🔑 Đăng nhập Facebook"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">🔍 Từ khóa</label>
                 <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -268,14 +434,16 @@ function App() {
                 </button>
                 <label className="text-xs text-slate-300 select-none">Lọc trùng (toàn DB)</label>
               </div>
-              <div className="flex items-center gap-3 pt-1">
-                <button role="switch" aria-checked={deepCrawl}
-                  onClick={() => !isScraping && setDeepCrawl((v) => !v)}
-                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${deepCrawl ? "bg-amber-600" : "bg-slate-600"} ${isScraping ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${deepCrawl ? "translate-x-5" : "translate-x-0"}`} />
-                </button>
-                <label className="text-xs text-slate-300 select-none">Quét sâu (Lấy Email) <span className="text-amber-400 font-semibold text-[10px]">CHẬM</span></label>
-              </div>
+              {source === "maps" && (
+                <div className="flex items-center gap-3 pt-1">
+                  <button role="switch" aria-checked={deepCrawl}
+                    onClick={() => !isScraping && setDeepCrawl((v) => !v)}
+                    className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${deepCrawl ? "bg-amber-600" : "bg-slate-600"} ${isScraping ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${deepCrawl ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                  <label className="text-xs text-slate-300 select-none">Quét sâu (Lấy Email) <span className="text-amber-400 font-semibold text-[10px]">CHẬM</span></label>
+                </div>
+              )}
             </div>
           </div>
 

@@ -131,6 +131,13 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)",
             "CREATE INDEX IF NOT EXISTS idx_leads_region ON leads(region)",
             "CREATE INDEX IF NOT EXISTS idx_leads_friend_sent ON leads(friend_sent_at)",
+            // V1.2: Multi-source support (Google Maps + Facebook)
+            "ALTER TABLE leads ADD COLUMN source TEXT NOT NULL DEFAULT 'google_maps'",
+            "ALTER TABLE leads ADD COLUMN fb_url TEXT DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN category TEXT DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN follower_count TEXT DEFAULT ''",
+            "CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_fb_url ON leads(fb_url) WHERE fb_url != ''",
         ];
         for sql in &migrations {
             let _ = self.conn.execute(sql, []); // ignore "duplicate column" / "already exists" errors
@@ -209,6 +216,47 @@ impl Database {
             params![name, phone, address, region, keyword, website, email],
         )?;
         Ok(rows > 0)
+    }
+
+    /// Insert a Facebook Page lead into the database.
+    /// Deduplicates by fb_url. Returns true if inserted/updated, false if error.
+    pub fn insert_fb_lead(
+        &self,
+        name: &str,
+        phone: &str,
+        address: &str,
+        region: &str,
+        keyword: &str,
+        website: &str,
+        email: &str,
+        fb_url: &str,
+        category: &str,
+        follower_count: &str,
+    ) -> SqlResult<bool> {
+        let rows = self.conn.execute(
+            "INSERT INTO leads (name, phone, address, region, keyword, website, email, source, fb_url, category, follower_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'facebook', ?8, ?9, ?10)
+             ON CONFLICT (fb_url) WHERE fb_url != '' DO UPDATE SET
+                phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE leads.phone END,
+                email = CASE WHEN excluded.email != '' THEN excluded.email ELSE leads.email END,
+                website = CASE WHEN excluded.website != '' THEN excluded.website ELSE leads.website END,
+                category = CASE WHEN excluded.category != '' THEN excluded.category ELSE leads.category END,
+                follower_count = CASE WHEN excluded.follower_count != '' THEN excluded.follower_count ELSE leads.follower_count END",
+            params![name, phone, address, region, keyword, website, email, fb_url, category, follower_count],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Check if a Facebook page URL already exists in the database.
+    pub fn fb_url_exists(&self, fb_url: &str) -> bool {
+        if fb_url.is_empty() { return false; }
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM leads WHERE fb_url = ?1",
+                params![fb_url],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0) > 0
     }
 
     // ── Read ─────────────────────────────────────────────────
