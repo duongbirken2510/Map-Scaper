@@ -15,7 +15,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-Bundled-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Language](https://img.shields.io/badge/i18n-Tiếng_Việt_%7C_English-10B981)](#)
 
-[**🇬🇧 English Documentation**](#-english-overview) • [**🇻🇳 Tài Liệu Tiếng Việt**](#-tổng-quan-tiếng-việt) • [**📖 Hướng Dẫn Chi Tiết (VN)**](./HUONG_DAN_SU_DUNG.md)
+[**📥 Download Installers (.exe / .dmg)**](https://github.com/duongbirken2510/Map-Scaper/releases) • [**🇬🇧 English Documentation**](#-english-overview) • [**🇻🇳 Tài Liệu Tiếng Việt**](#-tổng-quan-tiếng-việt) • [**📖 Hướng Dẫn Chi Tiết (VN)**](./HUONG_DAN_SU_DUNG.md)
 
 </div>
 
@@ -117,5 +117,14 @@ Xem toàn bộ hướng dẫn từng bước cho người dùng cuối và cách
 
 ---
 
+## 👤 Author & Community Support / Tác Giả & Liên Hệ
+
+Developed and shared free for the community by **Duong Birken**:
+- ⭐ **GitHub:** [github.com/duongbirken2510/Map-Scaper](https://github.com/duongbirken2510/Map-Scaper)
+- 📘 **Facebook:** [facebook.com/duongbirken](https://www.facebook.com/duongbirken)
+- 💬 **Zalo / Hotline:** [0972.244.183](https://zalo.me/0972244183)
+
+---
+
 ## 📄 License
-Copyright © StepWell Vietnam / Tidu System. All rights reserved.
+Copyright © 2026 **Duong Birken**. Free Community Edition.

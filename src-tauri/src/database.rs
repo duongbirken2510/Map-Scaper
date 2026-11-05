@@ -145,13 +145,13 @@ impl Database {
 
         // Insert default settings if not exist
         let default_email_body = r#"<p>{Kính chào|Xin chào|Chào} Anh/Chị quản lý cửa hàng <b>[Tên]</b>,</p>
-<p>{Em là|Em tên là|Tôi là} Nguyên, phụ trách {bộ phận Phát triển Đại lý|mảng phân phối sỉ|bộ phận kinh doanh} của xưởng giày <b>Tigish Việt Nam</b>.</p>
-<p>{Em có lướt qua|Đội ngũ bên em có tìm hiểu|Bên em tình cờ biết đến} {cửa hàng|thương hiệu} của Anh/Chị và thấy {rất ấn tượng|rất phù hợp|định hướng rất đồng điệu} với các dòng sản phẩm giày dép mà {nhà xưởng bên em|xưởng Tigish} đang sản xuất.</p>
-<p>{Hiện tại|Thời gian này|Tháng này}, Tigish đang {mở rộng mạng lưới đại lý|tìm kiếm đối tác phân phối|đẩy mạnh bỏ sỉ} tại khu vực của Anh/Chị với mức chiết khấu {rất hấp dẫn|cực kỳ ưu đãi cho đối tác mới|cạnh tranh nhất thị trường}. Hàng bên em {đều được gia công trực tiếp tại xưởng|luôn cập nhật mẫu mã liên tục|đảm bảo chất lượng chuẩn xuất khẩu} và đặc biệt không qua trung gian.</p>
-<p>{Anh/Chị có quan tâm|Nếu Anh/Chị có nhu cầu, em có thể|Không biết Anh/Chị có muốn} {nhận báo giá sỉ|em gửi catalog hình ảnh|xem qua danh sách mẫu mã} của bên em để tham khảo thêm không?</p>
+<p>{Em là|Em tên là|Tôi là} <b>Duong Birken</b>, phụ trách {bộ phận Phát triển Đối tác|mảng phân phối sỉ|bộ phận kinh doanh}.</p>
+<p>{Em có lướt qua|Đội ngũ bên em có tìm hiểu|Bên em tình cờ biết đến} {cửa hàng|thương hiệu} của Anh/Chị tại [Website] và thấy {rất ấn tượng|rất phù hợp|định hướng rất đồng điệu} với các dòng sản phẩm mà bên em đang cung cấp.</p>
+<p>{Hiện tại|Thời gian này|Tháng này}, bên em đang {mở rộng mạng lưới đại lý|tìm kiếm đối tác phân phối|đẩy mạnh hợp tác B2B} tại khu vực của Anh/Chị với mức chiết khấu {rất hấp dẫn|cực kỳ ưu đãi cho đối tác mới|cạnh tranh nhất thị trường}.</p>
+<p>{Anh/Chị có quan tâm|Nếu Anh/Chị có nhu cầu, em có thể|Không biết Anh/Chị có muốn} {nhận báo giá sỉ|em gửi catalog hình ảnh|xem qua danh sách mẫu mã} để tham khảo thêm không?</p>
 <p>{Anh/Chị chỉ cần phản hồi "Có"|Anh/Chị cứ reply lại email này nhé|Chỉ cần nhắn lại "Gửi anh/chị xem"}, em sẽ {phản hồi qua ngay|gửi thông tin chi tiết ngay lập tức|tổng hợp file gửi cho Anh/Chị ngay}.</p>
 <p>{Trân trọng|Chúc Anh/Chị một ngày kinh doanh hiệu quả|Cảm ơn Anh/Chị đã dành thời gian đọc thư},<br>
-<b>Đại diện Kinh Doanh - Xưởng giày Tigish</b><br>
+<b>Duong Birken</b><br>
 📞 Zalo/Hotline: +84 972 244 183</p>"#;
 
         let defaults = [
@@ -162,7 +162,7 @@ impl Database {
             // Email outreach has its own separate delay settings
             ("email_delay_min", "30"),
             ("email_delay_max", "60"),
-            ("email_subject", "{Hợp tác|Thư ngỏ|Gửi thư từ xưởng giày Tigish} - Gửi quản lý cửa hàng [Tên]"),
+            ("email_subject", "{Hợp tác|Thư ngỏ|Đề xuất hợp tác từ Duong Birken} - Gửi quản lý cửa hàng [Tên]"),
             ("email_body", default_email_body),
         ];
         for (key, value) in &defaults {

@@ -164,7 +164,7 @@ export const translations = {
     saveConfigBtn: "Lưu cấu hình",
     composeEmailTitle: "2. Soạn thảo Nội dung",
     emailSubjectLabel: "Tiêu đề (Subject)",
-    emailSubjectPlaceholder: "{Hợp tác|Thư ngỏ|Gửi thư từ xưởng giày Tigish} - Gửi quản lý cửa hàng [Tên]",
+    emailSubjectPlaceholder: "{Hợp tác|Thư ngỏ|Đề xuất hợp tác từ Duong Birken} - Gửi quản lý cửa hàng [Tên]",
     emailBodyLabel: "Nội dung (Hỗ trợ HTML)",
     emailBodyPlaceholder: "<p>{Kính chào|Xin chào} Anh/Chị quản lý cửa hàng [Tên]...</p>",
     supportedVarsLabel: "Biến hỗ trợ:",
@@ -187,6 +187,13 @@ export const translations = {
     zaloLimitWarn3: "• Vượt giới hạn → tài khoản có thể bị khóa tạm 1-7 ngày",
     saveSettingsBtn: "💾 Lưu cài đặt",
     settingsSavedAlert: "Đã lưu cài đặt!",
+
+    // Footer & Branding (Duong Birken)
+    byAuthor: "bởi Duong Birken",
+    footerCopyright: "Phát triển bởi Duong Birken — Phiên bản Cộng đồng Miễn phí",
+    footerGithub: "Mã nguồn & Tải bản mới (GitHub)",
+    footerFacebook: "Facebook Duong Birken",
+    footerZalo: "Zalo hỗ trợ: 0972.244.183",
   },
   en: {
     // Header
@@ -372,6 +379,13 @@ export const translations = {
     zaloLimitWarn3: "• Exceeding limits may temporarily restrict your account for 1–7 days",
     saveSettingsBtn: "💾 Save Settings",
     settingsSavedAlert: "Settings saved!",
+
+    // Footer & Branding (Duong Birken)
+    byAuthor: "by Duong Birken",
+    footerCopyright: "Developed by Duong Birken — Free Community Edition",
+    footerGithub: "Source Code & Releases (GitHub)",
+    footerFacebook: "Duong Birken Facebook",
+    footerZalo: "Zalo Support: 0972.244.183",
   },
 } as const;
 
@@ -390,3 +404,4 @@ export const I18nContext = createContext<I18nContextType>({
 });
 
 export const useI18n = () => useContext(I18nContext);
+

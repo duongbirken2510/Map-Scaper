@@ -1,0 +1,85 @@
+name: Build & Release Installers (Windows .exe & macOS .dmg)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+            node_bin: "node-aarch64-apple-darwin"
+          - platform: "windows-latest"
+            args: ""
+            node_bin: "node-x86_64-pc-windows-msvc.exe"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Prepare Node sidecar binary (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          cp "$(which node)" "src-tauri/binaries/${{ matrix.node_bin }}"
+          chmod +x "src-tauri/binaries/${{ matrix.node_bin }}"
+
+      - name: Prepare Node sidecar binary (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
+          Copy-Item (Get-Command node).Source "src-tauri/binaries/${{ matrix.node_bin }}" -Force
+
+      - name: Install frontend & sidecar dependencies
+        shell: bash
+        run: |
+          npm ci
+          cd src-tauri/zalo-sidecar && npm ci && node build.mjs
+
+      - name: Build and publish Tauri installers to GitHub Releases
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "StepWell Scraper v__VERSION__ — Free Community Edition (by Duong Birken)"
+          releaseBody: |
+            ## 🎁 StepWell Scraper v__VERSION__ — Free Community Edition
+            **Developed by [Duong Birken](https://github.com/duongbirken2510)**
+
+            ### 📥 Download Installers / Tải Bản Cài Đặt:
+            - **🪟 Windows (64-bit):** Download `.exe` (`_x64-setup.exe`) or `.msi` below and run to install.
+            - **🍎 macOS (Apple Silicon M1/M2/M3/M4):** Download `.dmg` (`_aarch64.dmg`) below, open and drag to `Applications`.
+
+            📖 **User Guide / Hướng dẫn sử dụng:** [HUONG_DAN_SU_DUNG.md](https://github.com/duongbirken2510/Map-Scaper/blob/master/HUONG_DAN_SU_DUNG.md)
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

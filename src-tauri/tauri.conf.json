@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1422",
-    "beforeBuildCommand": "npm run build && cd src-tauri/zalo-sidecar && npm install && npx esbuild index.mjs --bundle --platform=node --format=cjs --banner:js=\"Object.defineProperty(globalThis,'__importMetaUrl',{get:()=>'file://'+__filename});\" --define:import.meta.url=globalThis.__importMetaUrl --outfile=bundle.cjs",
+    "beforeBuildCommand": "npm run build && cd src-tauri/zalo-sidecar && npm install && node build.mjs",
     "frontendDist": "../dist"
   },
   "app": {

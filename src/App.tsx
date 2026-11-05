@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import ZaloTab from "./ZaloTab";
 import { I18nContext, Language, translations } from "./i18n";
 import "./App.css";
@@ -330,7 +331,12 @@ function App() {
           <div className="flex items-center gap-3">
             <img src={appLogo} alt="StepWell Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
             <div>
-              <h1 className="text-lg font-bold text-white leading-none">StepWell Scraper</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-white leading-none">StepWell Scraper</h1>
+                <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-full">
+                  {t.byAuthor}
+                </span>
+              </div>
               <p className="text-xs text-slate-400 mt-1">{t.appSubtitle}</p>
             </div>
           </div>
@@ -681,6 +687,40 @@ function App() {
             {activeTab === "zalo" && <ZaloTab />}
           </main>
         </div>
+
+        {/* ── Brand Footer (Duong Birken) ── */}
+        <footer className="flex items-center justify-between px-6 py-2 bg-slate-900 border-t border-slate-800 text-[11px] text-slate-400 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-400 font-semibold">⚡ Duong Birken</span>
+            <span className="text-slate-600">•</span>
+            <span>{t.footerCopyright} (v1.1.1)</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => openUrl("https://github.com/duongbirken2510/Map-Scaper").catch(() => window.open("https://github.com/duongbirken2510/Map-Scaper", "_blank"))}
+              className="hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>⭐</span>
+              <span>{t.footerGithub}</span>
+            </button>
+            <span className="text-slate-700">|</span>
+            <button
+              onClick={() => openUrl("https://www.facebook.com/duongbirken").catch(() => window.open("https://www.facebook.com/duongbirken", "_blank"))}
+              className="hover:text-blue-400 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>📘</span>
+              <span>{t.footerFacebook}</span>
+            </button>
+            <span className="text-slate-700">|</span>
+            <button
+              onClick={() => openUrl("https://zalo.me/0972244183").catch(() => window.open("https://zalo.me/0972244183", "_blank"))}
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>💬</span>
+              <span>{t.footerZalo}</span>
+            </button>
+          </div>
+        </footer>
       </div>
     </I18nContext.Provider>
   );
