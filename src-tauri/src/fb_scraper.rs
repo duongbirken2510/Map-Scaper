@@ -101,11 +101,37 @@ fn find_chrome_path() -> String {
 }
 
 fn chrome_config(profile_dir: &Path, headed: bool) -> Result<BrowserConfig, String> {
+    // CRITICAL: Aggressive cleanup to prevent SingletonLock race conditions.
+    // This happens when check_fb_login (headless) is still running and user
+    // clicks "Đăng nhập" (headed), both trying to use the same profile dir.
+    for file_name in &["SingletonLock", "SingletonSocket", "SingletonCookie"] {
+        let f = profile_dir.join(file_name);
+        if f.exists() {
+            let _ = std::fs::remove_file(&f);
+        }
+    }
+    // Kill any zombie Chrome processes using this profile dir
+    if let Some(dir_str) = profile_dir.to_str() {
+        let _ = std::process::Command::new("pkill")
+            .args(["-f", &format!("--user-data-dir={}", dir_str)])
+            .output();
+        // Small delay to let processes die
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Re-clean after kill
+        for file_name in &["SingletonLock", "SingletonSocket", "SingletonCookie"] {
+            let f = profile_dir.join(file_name);
+            if f.exists() {
+                let _ = std::fs::remove_file(&f);
+            }
+        }
+    }
+
     let mut builder = BrowserConfig::builder()
         .chrome_executable(find_chrome_path())
         .no_sandbox()
         .window_size(1280, 900)
-        .user_data_dir(profile_dir);
+        .user_data_dir(profile_dir)
+        .launch_timeout(std::time::Duration::from_secs(60));
 
     if headed {
         builder = builder.with_head();
@@ -115,6 +141,12 @@ fn chrome_config(profile_dir: &Path, headed: bool) -> Result<BrowserConfig, Stri
         .arg("--no-first-run")
         .arg("--disable-sync")
         .arg("--disable-background-networking")
+        .arg("--disable-session-crashed-bubble")   // Prevent "restore session" dialog
+        .arg("--hide-crash-restore-bubble")         // Prevent crash recovery prompt
+        .arg("--no-default-browser-check")          // Skip default browser dialog
+        .arg("--disable-extensions")                // Faster startup
+        .arg("--disable-infobars")                  // No info bars
+        .arg("--disable-popup-blocking")
         .arg("--lang=vi")
         .build()
         .map_err(|e| format!("Chrome config error: {}", e))
@@ -148,7 +180,9 @@ fn random_delay(min: u64, max: u64) -> Duration {
 // Public API
 // ============================================================
 
-/// Check if user is logged into Facebook using persistent profile
+/// Check if user is logged into Facebook using persistent profile.
+/// Uses `c_user` cookie detection — the ONLY reliable method.
+/// Facebook sets c_user cookie only when a real user session exists.
 pub async fn check_fb_login() -> Result<FbLoginStatus, String> {
     let profile_dir = get_fb_profile_dir();
     let config = chrome_config(&profile_dir, false)?;
@@ -166,46 +200,56 @@ pub async fn check_fb_login() -> Result<FbLoginStatus, String> {
         .await
         .map_err(|e| format!("Không thể mở trang: {}", e))?;
 
-    sleep(Duration::from_secs(4)).await;
+    sleep(Duration::from_secs(5)).await;
 
-    let url = page.url().await.ok().flatten().unwrap_or_default();
+    // The c_user cookie is THE definitive indicator of a Facebook login.
+    // It contains the user's Facebook ID and only exists when logged in.
+    let login_check = page
+        .evaluate(
+            r#"
+            (function() {
+                let cookies = document.cookie;
+                let c_user_match = cookies.match(/c_user=(\d+)/);
+                if (!c_user_match) {
+                    return { logged_in: false, name: '' };
+                }
+                return { logged_in: true, name: c_user_match[1] };
+            })()
+            "#,
+        )
+        .await
+        .ok()
+        .and_then(|v| v.into_value::<FbLoginStatus>().ok())
+        .unwrap_or(FbLoginStatus { logged_in: false, name: String::new() });
 
-    let status = if url.contains("/login") || url.contains("checkpoint") || url.contains("/recover") {
-        FbLoginStatus {
-            logged_in: false,
-            name: String::new(),
-        }
+    if !login_check.logged_in {
+        let _ = browser.close().await;
+        return Ok(login_check);
+    }
+
+    // Logged in! Navigate to profile to get the real name
+    let c_user_id = login_check.name.clone();
+    let profile_url = format!(
+        "https://www.facebook.com/profile.php?id={}",
+        c_user_id
+    );
+    let _ = page.goto(&profile_url).await;
+    sleep(Duration::from_secs(5)).await;
+
+    // Get raw HTML source and parse with Rust regex — more reliable than JS evaluate
+    // because Facebook SPA may not render meta tags in DOM for headless browsers
+    let html = page.content().await.unwrap_or_default();
+    
+    let profile_name = extract_fb_profile_name(&html);
+
+    let final_name = if profile_name.is_empty() {
+        format!("Facebook ID: {}", c_user_id)
     } else {
-        // Try to extract user name from mobile Facebook
-        let name = page
-            .evaluate(
-                r#"
-                (function() {
-                    // Try multiple selectors for profile name on mobile FB
-                    let el = document.querySelector('header a[href*="/profile"]');
-                    if (el) return el.textContent.trim();
-                    el = document.querySelector('[data-sigil="MTopBlueBarProfileImage"]');
-                    if (el) return el.getAttribute('alt') || '';
-                    // Fallback: look for profile link text
-                    let links = document.querySelectorAll('a[href*="profile.php"], a[href*="/me"]');
-                    for (let l of links) { if (l.textContent.trim()) return l.textContent.trim(); }
-                    return 'Facebook User';
-                })()
-                "#,
-            )
-            .await
-            .ok()
-            .and_then(|v| v.into_value::<String>().ok())
-            .unwrap_or_else(|| "Facebook User".to_string());
-
-        FbLoginStatus {
-            logged_in: true,
-            name,
-        }
+        profile_name
     };
 
     let _ = browser.close().await;
-    Ok(status)
+    Ok(FbLoginStatus { logged_in: true, name: final_name })
 }
 
 /// Show a headed Chrome window for user to manually log into Facebook.
@@ -322,10 +366,17 @@ pub async fn start_fb_scraping(
         .await
         .map_err(|e| format!("Không thể mở trang: {}", e))?;
 
-    sleep(Duration::from_secs(3)).await;
+    sleep(Duration::from_secs(4)).await;
 
-    let url = page.url().await.ok().flatten().unwrap_or_default();
-    if url.contains("/login") || url.contains("checkpoint") {
+    // Verify login using c_user cookie — same reliable method as check_fb_login
+    let has_c_user = page
+        .evaluate("document.cookie.includes('c_user=')")
+        .await
+        .ok()
+        .and_then(|v| v.into_value::<bool>().ok())
+        .unwrap_or(false);
+
+    if !has_c_user {
         let _ = browser.close().await;
         return Err("Phiên Facebook đã hết hạn. Vui lòng đăng nhập lại.".to_string());
     }
@@ -339,13 +390,14 @@ pub async fn start_fb_scraping(
         format!("{} {}", config.keyword, config.location)
     };
 
+    // Use DESKTOP Facebook search — mobile doesn't support /search/pages filter well
     let search_url = format!(
-        "https://m.facebook.com/search/pages/?q={}&ref=content_filter&source=filter",
+        "https://www.facebook.com/search/pages?q={}",
         url_encode(&search_query)
     );
 
     let _ = page.goto(&search_url).await;
-    sleep(Duration::from_secs(4)).await;
+    sleep(Duration::from_secs(5)).await;
 
     emit_fb_progress(
         &app,
@@ -362,29 +414,42 @@ pub async fn start_fb_scraping(
             break;
         }
 
-        // Extract page links from search results
+        // Extract page links from search results — desktop FB structure
         let links: Vec<String> = page
             .evaluate(
                 r#"
                 (function() {
                     let results = [];
-                    // Mobile FB search result links
-                    let links = document.querySelectorAll('a[href*="/pages/"]');
-                    links.forEach(a => {
+                    // Desktop FB search results: links inside result cards
+                    document.querySelectorAll('a[role="presentation"][href*="facebook.com/"]').forEach(a => {
                         let href = a.href;
-                        if (href && !href.includes('/search/') && !href.includes('?')) {
-                            results.push(href);
+                        if (href && !href.includes('/search') && !href.includes('/login') 
+                            && !href.includes('/help') && !href.includes('/settings')
+                            && !href.includes('/groups/') && !href.includes('/events/')
+                            && !href.includes('/watch') && !href.includes('/reel')
+                            && !href.includes('/photo') && !href.includes('/video')) {
+                            results.push(href.split('?')[0]); // remove query params
                         }
                     });
-                    // Also try direct page links from search
-                    document.querySelectorAll('a[href^="/"]').forEach(a => {
+                    // Also try links with page-like paths
+                    document.querySelectorAll('a[href*="facebook.com/"]').forEach(a => {
                         let href = a.href;
-                        // Filter for page-like URLs (exclude common paths)
-                        if (href && !href.includes('/search/') && !href.includes('/login')
-                            && !href.includes('/settings') && !href.includes('/help')
-                            && !href.includes('/hashtag') && !href.includes('/story')
-                            && a.querySelector('img') && a.textContent.trim().length > 2) {
-                            results.push(href);
+                        let text = a.textContent.trim();
+                        // Must have visible text (page name) and not be navigation
+                        if (href && text.length > 2 && text.length < 80
+                            && !href.includes('/search') && !href.includes('/login')
+                            && !href.includes('/help') && !href.includes('/settings')
+                            && !href.includes('/groups/') && !href.includes('/events/')
+                            && !href.includes('/watch') && !href.includes('/reel')
+                            && !href.includes('/photo') && !href.includes('/video')
+                            && !href.includes('/hashtag') && !href.includes('#')
+                            && !href.includes('/stories') && !href.includes('/marketplace')) {
+                            let clean = href.split('?')[0];
+                            // Must look like a page URL (e.g. facebook.com/pagename or facebook.com/profile.php?id=...)
+                            let path = clean.replace(/https?:\/\/(www\.)?facebook\.com\/?/, '');
+                            if (path && path.length > 1 && !path.includes('/') && path !== 'search') {
+                                results.push(clean);
+                            }
                         }
                     });
                     return [...new Set(results)];
@@ -665,6 +730,61 @@ async fn extract_page_info(page: &Page, page_url: &str) -> Option<FbPageData> {
 // Text Extraction Helpers
 // ============================================================
 
+/// Extract the profile name from Facebook page HTML source
+fn extract_fb_profile_name(html: &str) -> String {
+    let blacklist = ["thông báo", "facebook", "notifications", "đăng nhập", "log in", "messenger", ""];
+    
+    // Helper: clean a raw title string
+    let clean_fb_title = |raw: &str| -> String {
+        let mut s = raw.trim().to_string();
+        // Strip notification count prefix: "(8) " or "(12) "
+        if let Ok(re) = Regex::new(r"^\(\d+\)\s*") {
+            s = re.replace(&s, "").to_string();
+        }
+        // Strip " | Facebook", " - Facebook", or just " Facebook" suffix
+        if let Ok(re) = Regex::new(r"(?i)\s*[|–\-]?\s*Facebook\s*$") {
+            s = re.replace(&s, "").to_string();
+        }
+        s.trim().to_string()
+    };
+    
+    // Method 1: og:title meta tag — present in raw HTML even before JS renders
+    if let Ok(re) = Regex::new(r#"<meta[^>]+property="og:title"[^>]+content="([^"]+)""#) {
+        if let Some(m) = re.captures(html) {
+            if let Some(name) = m.get(1) {
+                let n = clean_fb_title(&html_decode(name.as_str()));
+                if n.len() > 1 && n.len() < 60 && !blacklist.contains(&n.to_lowercase().as_str()) {
+                    return n;
+                }
+            }
+        }
+    }
+    // Also try reversed attribute order
+    if let Ok(re) = Regex::new(r#"<meta[^>]+content="([^"]+)"[^>]+property="og:title""#) {
+        if let Some(m) = re.captures(html) {
+            if let Some(name) = m.get(1) {
+                let n = clean_fb_title(&html_decode(name.as_str()));
+                if n.len() > 1 && n.len() < 60 && !blacklist.contains(&n.to_lowercase().as_str()) {
+                    return n;
+                }
+            }
+        }
+    }
+    
+    // Method 2: <title> tag
+    if let Ok(re) = Regex::new(r"<title[^>]*>([^<]+)</title>") {
+        if let Some(m) = re.captures(html) {
+            if let Some(title) = m.get(1) {
+                let name = clean_fb_title(&html_decode(title.as_str()));
+                if name.len() > 1 && name.len() < 60 && !blacklist.contains(&name.to_lowercase().as_str()) {
+                    return name;
+                }
+            }
+        }
+    }
+    
+    String::new()
+}
 /// Extract Vietnamese phone numbers from HTML
 fn extract_phone(html: &str) -> String {
     let re = Regex::new(

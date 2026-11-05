@@ -219,7 +219,8 @@ impl Database {
     }
 
     /// Insert a Facebook Page lead into the database.
-    /// Deduplicates by fb_url. Returns true if inserted/updated, false if error.
+    /// Deduplicates by fb_url. Handles phone UNIQUE constraint gracefully.
+    /// Returns true if inserted/updated, false if error.
     pub fn insert_fb_lead(
         &self,
         name: &str,
@@ -233,15 +234,57 @@ impl Database {
         category: &str,
         follower_count: &str,
     ) -> SqlResult<bool> {
+        // Step 1: Try to UPDATE existing record by fb_url (if exists)
+        let updated = self.conn.execute(
+            "UPDATE leads SET
+                name = ?1,
+                phone = CASE WHEN ?2 != '' THEN ?2 ELSE phone END,
+                address = CASE WHEN ?3 != '' THEN ?3 ELSE address END,
+                region = ?4,
+                keyword = ?5,
+                website = CASE WHEN ?6 != '' THEN ?6 ELSE website END,
+                email = CASE WHEN ?7 != '' THEN ?7 ELSE email END,
+                category = CASE WHEN ?9 != '' THEN ?9 ELSE category END,
+                follower_count = CASE WHEN ?10 != '' THEN ?10 ELSE follower_count END,
+                source = 'facebook'
+            WHERE fb_url = ?8 AND fb_url != ''",
+            params![name, phone, address, region, keyword, website, email, fb_url, category, follower_count],
+        )?;
+
+        if updated > 0 {
+            return Ok(true);
+        }
+
+        // Step 2: Not existing by fb_url — check phone conflict
+        if !phone.is_empty() {
+            let phone_exists: bool = self.conn
+                .query_row(
+                    "SELECT COUNT(*) FROM leads WHERE phone = ?1",
+                    params![phone],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0) > 0;
+
+            if phone_exists {
+                // Phone already belongs to another lead — update that lead with FB data
+                self.conn.execute(
+                    "UPDATE leads SET
+                        fb_url = ?8, source = 'facebook',
+                        category = CASE WHEN ?9 != '' THEN ?9 ELSE category END,
+                        follower_count = CASE WHEN ?10 != '' THEN ?10 ELSE follower_count END,
+                        website = CASE WHEN ?6 != '' THEN ?6 ELSE website END,
+                        email = CASE WHEN ?7 != '' THEN ?7 ELSE email END
+                    WHERE phone = ?2",
+                    params![name, phone, address, region, keyword, website, email, fb_url, category, follower_count],
+                )?;
+                return Ok(true);
+            }
+        }
+
+        // Step 3: Fresh insert — no conflicts
         let rows = self.conn.execute(
             "INSERT INTO leads (name, phone, address, region, keyword, website, email, source, fb_url, category, follower_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'facebook', ?8, ?9, ?10)
-             ON CONFLICT (fb_url) WHERE fb_url != '' DO UPDATE SET
-                phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE leads.phone END,
-                email = CASE WHEN excluded.email != '' THEN excluded.email ELSE leads.email END,
-                website = CASE WHEN excluded.website != '' THEN excluded.website ELSE leads.website END,
-                category = CASE WHEN excluded.category != '' THEN excluded.category ELSE leads.category END,
-                follower_count = CASE WHEN excluded.follower_count != '' THEN excluded.follower_count ELSE leads.follower_count END",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'facebook', ?8, ?9, ?10)",
             params![name, phone, address, region, keyword, website, email, fb_url, category, follower_count],
         )?;
         Ok(rows > 0)
